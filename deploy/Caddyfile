@@ -1,0 +1,24 @@
+# {$SITE_ADDRESS} is your domain (HTTPS certificate is fetched automatically) or :80 for a local test.
+# Sign-in is done by the app itself (login page, session cookie, optional authenticator code): see AUTH_* in .env.
+# Caddy sets X-Forwarded-For for the API (it drops one sent by the client), which the API uses against password guessing.
+{$SITE_ADDRESS} {
+	encode gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		# Browsers only honour this over HTTPS, so it is harmless on the plain-HTTP VPN setup (SITE_ADDRESS=:80).
+		Strict-Transport-Security "max-age=15552000; includeSubDomains"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy app:8787
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

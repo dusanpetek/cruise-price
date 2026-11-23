@@ -1,0 +1,81 @@
+{
+  "provider": "aida",
+  "urlParams": {
+    "adults": "pax[adults]",
+    "juveniles": "pax[juveniles]",
+    "children": "pax[children]",
+    "babies": "pax[babies]"
+  },
+  "api": {
+    "cruiseDetail": "detail\\.cruise\\.json"
+  },
+  "cookieAccept": {
+    "role": "button",
+    "name": "ALLE COOKIES"
+  },
+  "title": {
+    "css": "h1"
+  },
+  "passengerSummary": {
+    "role": "button",
+    "name": "Reisende"
+  },
+  "passengerPattern": "(\\d+) Erwachsene",
+  "otherPassengersPattern": "Jugendliche|Kinder|Baby",
+  "flightTeaser": {
+    "css": "button.cmp-cruise-detail-dropdowns__airports-teaser"
+  },
+  "flightOptionAny": {
+    "role": "option"
+  },
+  "flightOptions": {
+    "FRA": {
+      "role": "option",
+      "name": "^Frankfurt - AIDA - Frankfurt$"
+    }
+  },
+  "cabinCard": {
+    "css": "li.cmp-cabin-category-overview__teaser-list-item"
+  },
+  "cabinTitle": {
+    "css": "h3.cmp-cabin-category-overview__cabin-title"
+  },
+  "cabinPrice": {
+    "css": "span.cmp-cabin-category-overview__tariff-price-price"
+  },
+  "flightIncluded": {
+    "css": "span.cmp-cabin-category-overview__flight-included"
+  },
+  "journeyPattern": "/finden/([^/?]+)",
+  "bookingUrl": "https://aida.de/buchen/{journey}/CLASSIC/meine-reise/kabine?adults={adults}&juveniles=0&children=0&babies=0&cabin={cabin}&flightType=air&depAirport={airport}&arrAirport={airport}",
+  "fareStep": {
+    "ready": {
+      "text": "Wählen Sie einen Tarif"
+    },
+    "startPattern": "Wählen Sie einen Tarif",
+    "endPattern": "^Gesamtpreis:",
+    "headingPattern": "^[A-ZÄÖÜ][A-ZÄÖÜ ]{2,}$",
+    "pricePattern": "^ab ([\\d.]+) € Kabinenpreis$",
+    "unavailablePattern": "Nicht verfügbar$",
+    "allInPattern": "^(.+) ALL IN im nächsten Schritt buchbar$",
+    "servicesIntroPattern": "^Tarifpaket enthält folgende Leistungen:"
+  },
+  "selectFare": {
+    "text": "^{fare} auswählen$"
+  },
+  "allInStep": {
+    "ready": {
+      "text": "MÖCHTEN SIE AUF"
+    },
+    "introPattern": "^Im Reisepreis inklusive:",
+    "endPattern": "^Ohne ALL IN fortfahren",
+    "pricePattern": "^ab ([\\d.]+) € Kabinenpreis$"
+  },
+  "serviceFlags": {
+    "selectableCabin": {
+      "yes": "Wunschkabine",
+      "no": "Wahl der Kabinenkategorie|wir wählen Deck und Kabine"
+    },
+    "refundable": "(?:^|: )Kostenfrei stornierbar$"
+  }
+}

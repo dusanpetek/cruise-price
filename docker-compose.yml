@@ -1,0 +1,39 @@
+# Production setup: docker compose up -d --build   (see docs/deployment.md)
+services:
+  app:
+    build: { context: ., target: app }
+    restart: unless-stopped
+    init: true # xvfb-run waits for a signal that PID 1 would swallow
+    environment:
+      CRUISE_LANGUAGE: ${CRUISE_LANGUAGE:-de}
+      ENABLE_SCHEDULER: "1"
+      # Sign-in: create the values with `pnpm --filter @cruise/api auth:setup --totp` and put them into .env.
+      AUTH_USER: ${AUTH_USER:?set AUTH_USER in .env (pnpm --filter @cruise/api auth:setup)}
+      AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?set AUTH_PASSWORD_HASH in .env (pnpm --filter @cruise/api auth:setup)}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?set AUTH_SESSION_SECRET in .env (pnpm --filter @cruise/api auth:setup)}
+      AUTH_TOTP_SECRET: ${AUTH_TOTP_SECRET:-} # set: the sign-in also asks for the code of the authenticator app
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-1} # 0 only for http://localhost tests
+      # COLLECT_CRON: "0 7 * * *"   # default: daily at 07:00; each route is collected at most once per day
+    volumes:
+      - cruise-data:/data
+    shm_size: "512mb" # Chromium needs more shared memory than Docker's 64 MB default
+    mem_limit: 1536m
+    memswap_limit: 3g
+    # Not published: only the web container reaches the API.
+    expose: ["8787"]
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+    # BIND_IP=<Tailscale-IP> makes the site reachable only through the VPN (see docs/deployment-strato.md). Docker publishes
+    # ports around ufw, so a firewall rule alone would not close them.
+    ports: ["${BIND_IP:-0.0.0.0}:80:80", "${BIND_IP:-0.0.0.0}:443:443"]
+    volumes:
+      - caddy-data:/data
+
+volumes:
+  cruise-data:
+  caddy-data:

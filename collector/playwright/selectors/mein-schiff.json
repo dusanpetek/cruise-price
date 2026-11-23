@@ -1,0 +1,67 @@
+{
+  "provider": "mein-schiff",
+  "cookieAccept": {
+    "role": "button",
+    "name": "^Zustimmen$"
+  },
+  "title": {
+    "css": "h1"
+  },
+  "ship": {
+    "css": "h2",
+    "text": "^Mein Schiff (?!®)\\S+"
+  },
+  "customizeOpen": {
+    "role": "button",
+    "name": "Reise anpassen"
+  },
+  "dialog": {
+    "css": "[role=\"dialog\"]"
+  },
+  "busyOverlay": "[role=\"dialog\"] div.absolute.inset-0.bg-section-gray",
+  "guestsPattern": "(\\d+) Gäste",
+  "dateRangePattern": "(\\d{2})\\.(\\d{2})\\. – (\\d{2})\\.(\\d{2})\\.(\\d{4})",
+  "nightsPattern": "(\\d+) Nächte",
+  "cabinPattern": "^(?<title>[^\\n]+)\\n(?:[^\\n]*Wohnfläche[^\\n]*\\n)?(?:[^\\n]*Personen[^\\n]*\\n)?ab\\n(?<price>[\\d.]+) €\\np\\.P\\.\\n(?:mit Flug ab (?<withFlight>[\\d.]+) €\\n)?Kabine (?:wählen|ausgewählt)",
+  "totalPattern": "Gesamtpreis\\n([\\d.]+) €",
+  "flightTab": {
+    "text": "^(Eigene An-/Abreise|[A-Z]{3} \\| [A-Z]{3})$"
+  },
+  "ownTravelRadio": {
+    "text": "^Eigene An-/Abreise$"
+  },
+  "flightRadio": {
+    "text": "^Flug ab/bis$"
+  },
+  "airportCombobox": {
+    "css": "button[role=\"combobox\"]"
+  },
+  "airportOptions": {
+    "FRA": {
+      "css": "[role=\"option\"]",
+      "text": "^FRA \\|"
+    }
+  },
+  "cabinTab": {
+    "text": "\\d+ Gäste \\|"
+  },
+  "tariffTab": {
+    "text": "Tarif$"
+  },
+  "tariffSelectButton": {
+    "role": "button",
+    "name": "^Tarif (auswählen|ausgewählt)"
+  },
+  "tariffList": "ul.space-y-4",
+  "iconCheckPath": "M21.58 5.22",
+  "iconCrossPath": "M4.17 4.47",
+  "tariffPricePattern": "ab ([\\d.]+) € p\\.P\\.",
+  "tariffUnavailablePattern": "nicht verfügbar",
+  "serviceFlags": {
+    "selectableCabin": {
+      "yes": "Kabinenkategorie und Nummer frei wählbar",
+      "no": "(Innen|Außen|Balkon)[^\\n]*(wählbar|auswählbar)"
+    },
+    "refundable": "(?:^|: )Kostenfrei stornierbar$"
+  }
+}

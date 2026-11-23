@@ -1,0 +1,29 @@
+{
+  "name": "cruise-price-tracker",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "pnpm seed && concurrently -k -n api,web -c blue,green \"pnpm --filter @cruise/api dev\" \"pnpm --filter @cruise/frontend dev\"",
+    "build": "pnpm --filter @cruise/frontend build",
+    "seed": "pnpm --filter @cruise/collector seed",
+    "collect": "pnpm --filter @cruise/collector collect",
+    "schedule": "pnpm --filter @cruise/collector schedule",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "ci": "pnpm typecheck && pnpm test:coverage && pnpm build",
+    "test:coverage": "vitest run --coverage",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "dev:mock": "COLLECTOR_MODE=mock pnpm dev"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
+    "concurrently": "^10.0.7",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

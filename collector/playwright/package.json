@@ -1,0 +1,31 @@
+{
+  "name": "@cruise/collector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "seed": "tsx src/cli/seed.ts",
+    "collect": "tsx src/cli/collect.ts",
+    "schedule": "tsx src/cli/schedule.ts",
+    "try-live": "tsx src/cli/try-live.ts",
+    "check-data": "tsx src/cli/check-data.ts",
+    "report:weekly": "tsx src/cli/weekly-report.ts",
+    "try-search": "tsx src/cli/try-search.ts"
+  },
+  "dependencies": {
+    "@cruise/analytics": "workspace:^",
+    "@cruise/domain": "workspace:^",
+    "@cruise/i18n": "workspace:^",
+    "@cruise/notifications": "workspace:^",
+    "@cruise/shared": "workspace:^",
+    "node-cron": "^4.6.0",
+    "playwright": "^1.65.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11"
+  }
+}

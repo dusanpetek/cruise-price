@@ -1,0 +1,23 @@
+{
+  "name": "@cruise/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "auth:setup": "tsx src/auth-cli.ts"
+  },
+  "dependencies": {
+    "@cruise/analytics": "workspace:^",
+    "@cruise/collector": "workspace:^",
+    "@cruise/domain": "workspace:^",
+    "@cruise/i18n": "workspace:^",
+    "@cruise/notifications": "workspace:^",
+    "@cruise/shared": "workspace:^",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}

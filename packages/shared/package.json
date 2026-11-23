@@ -1,0 +1,14 @@
+{
+  "name": "@cruise/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./storage": "./src/storage/index.ts"
+  },
+  "dependencies": {
+    "@cruise/domain": "workspace:^",
+    "zod": "^4.6.7"
+  }
+}

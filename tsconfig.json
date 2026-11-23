@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": ["node"],
+    "paths": { "@/*": ["./apps/frontend/src/*"] }
+  },
+  "include": ["apps", "packages", "collector", "e2e", "vitest.config.ts", "playwright.config.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
+}
