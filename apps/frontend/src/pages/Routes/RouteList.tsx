@@ -22,7 +22,7 @@ function TripDates({ departure, nights }: { departure: string | null; nights: nu
   );
 }
 
-export function RouteList() {
+export function RouteList({ onNavigate = () => {} }: { onNavigate?: () => void } = {}) {
   const { data: routes, isLoading, error } = useRoutes();
   const { create, update, remove } = useRouteMutations();
   const { data: intelligence } = useIntelligence();
@@ -56,6 +56,7 @@ export function RouteList() {
               onSuccess: (route) => {
                 close();
                 navigate(`/routes/${route.id}`);
+                onNavigate();
               },
             })
           }
@@ -84,7 +85,7 @@ export function RouteList() {
               className={cn('relative flex flex-col rounded-lg border bg-card transition-colors hover:bg-muted/50', route.id === current ? 'border-primary' : 'border-border')}
             >
               {/* The whole card is the link (its ::after covers the card); the buttons sit above it. */}
-              <NavLink to={`/routes/${route.id}`} className="flex items-start gap-3 px-3 pb-1 pt-3 after:absolute after:inset-0 after:rounded-lg after:content-['']">
+              <NavLink to={`/routes/${route.id}`} className="flex items-start gap-3 px-3 pb-1 pt-3 after:absolute after:inset-0 after:rounded-lg after:content-['']" onClick={onNavigate}>
                 <ProviderLogo provider={route.provider} size={36} />
                 <span className="min-w-0 flex-1">
                   <span className="block break-words text-sm font-medium leading-snug">{route.name}</span>

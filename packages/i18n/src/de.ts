@@ -13,6 +13,7 @@ export const de: Record<string, string> = {
   Light: 'Hell',
   Dark: 'Dunkel',
   'Page not found.': 'Seite nicht gefunden.',
+  'Open menu': 'Menü öffnen',
   // --- sign-in ---
   'Sign in': 'Anmelden',
   'Sign in to continue.': 'Melden Sie sich an, um fortzufahren.',
