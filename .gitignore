@@ -17,3 +17,4 @@ data/notifications.json
 .env
 data/intelligence/
 data/cache/
+.superpowers/
