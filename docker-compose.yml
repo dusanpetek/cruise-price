@@ -6,7 +6,7 @@ services:
     init: true # xvfb-run waits for a signal that PID 1 would swallow
     environment:
       CRUISE_LANGUAGE: ${CRUISE_LANGUAGE:-de}
-      ENABLE_SCHEDULER: "1"
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-1} # 0 = no automatic daily/weekly/monthly collections or reports; collect only by hand in the UI
       # Sign-in: create the values with `pnpm --filter @cruise/api auth:setup --totp` and put them into .env.
       AUTH_USER: ${AUTH_USER:?set AUTH_USER in .env (pnpm --filter @cruise/api auth:setup)}
       AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?set AUTH_PASSWORD_HASH in .env (pnpm --filter @cruise/api auth:setup)}
