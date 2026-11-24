@@ -119,7 +119,7 @@ export default function CopilotPage() {
           <div className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label={t('Example questions')}>
             <span className="text-muted-foreground">{t('Try')}:</span>
             {COPILOT_EXAMPLES.map((e) => (
-              <Button key={e} size="sm" variant="outline" data-testid="copilot-example" onClick={() => submit(t(e))} disabled={ask.isPending}>{t(e)}</Button>
+              <Button key={e} size="sm" variant="outline" className="whitespace-normal text-left" data-testid="copilot-example" onClick={() => submit(t(e))} disabled={ask.isPending}>{t(e)}</Button>
             ))}
           </div>
         </CardContent>

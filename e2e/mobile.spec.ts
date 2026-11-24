@@ -51,6 +51,7 @@ test('Escape closes an open drawer', async ({ page }) => {
 test('the overview page has no horizontal overflow at 360px wide', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto('/');
+  await page.getByTestId('widget-fares').waitFor(); // wait for the real content (tables etc.), not the "Analysing…" placeholder
   const overflowing = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflowing).toBe(false);
 });

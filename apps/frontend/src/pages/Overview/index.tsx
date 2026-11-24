@@ -15,7 +15,7 @@ import { t } from '@/lib/i18n';
 
 function Widget({ title, testId, hint, children }: { title: string; testId: string; hint?: string; children: React.ReactNode }) {
   return (
-    <Card data-testid={testId}>
+    <Card data-testid={testId} className="min-w-0">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
