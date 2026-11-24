@@ -66,3 +66,15 @@ test('the theme toggle cycles to dark from inside the mobile menu', async ({ pag
   await menu.getByRole('button', { name: /^Theme:/ }).click(); // light -> dark
   await expect(page.locator('html')).toHaveClass(/dark/);
 });
+
+test('closing the search dialog inside the mobile routes drawer does not close the drawer itself', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Routes', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: 'Routes' });
+  await drawer.getByRole('button', { name: 'Add', exact: true }).click();
+  await drawer.getByTestId('open-route-search').click();
+  await page.getByRole('dialog', { name: 'Search cruises' }).waitFor();
+  await page.keyboard.press('Escape'); // closes only the nested search dialog
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByLabel('Name')).toBeVisible(); // the half-filled Add form is still there
+});

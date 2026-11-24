@@ -5,8 +5,13 @@ import { t } from '@/lib/i18n';
 
 /**
  * A full-height panel that slides in from the left or right edge, for mobile navigation and the mobile route list.
- * Same native-`<dialog>` approach as `RouteSearchDialog`: Escape and the backdrop close it for free, and whatever
- * closes it (the X button, Escape, a caller-triggered `onClose`) goes through the same `onClose` prop.
+ * Same native-`<dialog>` approach as `RouteSearchDialog`: Escape closes it for free, and whatever closes it (the X
+ * button, Escape, a caller-triggered `onClose`) goes through the same `onClose` prop.
+ *
+ * A dialog opened from inside this one (e.g. RouteSearchDialog, opened from the Add form in the routes drawer) is
+ * also a `<dialog>`; its own `close`/`cancel` events bubble through the React tree and would reach this component's
+ * handlers too if we didn't filter by `e.target === e.currentTarget` — otherwise closing the nested dialog (Escape,
+ * its own X, picking a result) would close this drawer as a side effect.
  */
 export function Drawer({ open, onClose, side, 'aria-label': ariaLabel, children }: { open: boolean; onClose: () => void; side: 'left' | 'right'; 'aria-label': string; children: React.ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -18,11 +23,15 @@ export function Drawer({ open, onClose, side, 'aria-label': ariaLabel, children 
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
+  const onlyOwn = (e: React.SyntheticEvent<HTMLDialogElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
   return createPortal(
     <dialog
       ref={ref}
-      onClose={onClose}
-      onCancel={onClose}
+      onClose={onlyOwn}
+      onCancel={onlyOwn}
       aria-label={ariaLabel}
       className={`m-0 ${side === 'left' ? 'mr-auto' : 'ml-auto'} h-dvh max-h-dvh w-[min(20rem,85vw)] border-${side === 'left' ? 'r' : 'l'} border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-black/50`}
     >
