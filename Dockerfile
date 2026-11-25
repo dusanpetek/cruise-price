@@ -7,6 +7,9 @@ ENV COREPACK_INTEGRITY_KEYS=0
 RUN corepack enable
 WORKDIR /repo
 COPY . .
+# Contact address shown in the Impressum (baked into the static frontend).
+ARG VITE_LEGAL_EMAIL=
+ENV VITE_LEGAL_EMAIL=$VITE_LEGAL_EMAIL
 RUN pnpm install --frozen-lockfile && pnpm build
 
 # --- app: API, scheduler and collectors. The Playwright image brings Chromium and its system libraries. ---

@@ -23,7 +23,11 @@ services:
     expose: ["8787"]
 
   web:
-    build: { context: ., target: web }
+    build:
+      context: .
+      target: web
+      args:
+        VITE_LEGAL_EMAIL: ${LEGAL_EMAIL:-} # contact address in the Impressum; frontend is rebuilt on change
     restart: unless-stopped
     depends_on: [app]
     environment:
