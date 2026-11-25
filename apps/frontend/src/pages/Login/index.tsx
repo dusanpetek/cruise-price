@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Ship } from 'lucide-react';
 import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,14 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </main>
+      <footer className="flex justify-center gap-4 p-4 text-xs text-muted-foreground">
+        <Link to="/impressum" className="hover:text-foreground hover:underline" data-testid="link-impressum">
+          Impressum
+        </Link>
+        <Link to="/datenschutz" className="hover:text-foreground hover:underline" data-testid="link-datenschutz">
+          Datenschutzerklärung
+        </Link>
+      </footer>
     </div>
   );
 }

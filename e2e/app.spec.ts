@@ -1204,3 +1204,12 @@ test('the weekly mark reads "wöchentlich erfasst" in German, and a route withou
   await expect(list.getByTestId('route-weekly')).toHaveCount(1);
   await context.close();
 });
+
+test('legal pages are public and linked from the sign-in page', async ({ page }) => {
+  await page.goto('/impressum');
+  await expect(page.getByRole('heading', { name: 'Impressum', exact: true })).toBeVisible();
+  await page.goto('/datenschutz');
+  await expect(page.getByRole('heading', { name: 'Datenschutz', exact: true })).toBeVisible();
+  await page.getByTestId('legal-back').click();
+  await expect(page).toHaveURL('/');
+});
