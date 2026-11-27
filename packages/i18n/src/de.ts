@@ -755,7 +755,7 @@ export const de: Record<string, string> = {
   "Arrival": "Ankunft",
   "Departure": "Abfahrt",
   "Map of the route": "Karte der Route",
-  "© OpenStreetMap contributors": "© OpenStreetMap-Mitwirkende",
+  "contributors": "Mitwirkende",
   "Other": "Sonstige",
   "Spread {amount}": "Spanne {amount}",
   "Per person": "Pro Person",
