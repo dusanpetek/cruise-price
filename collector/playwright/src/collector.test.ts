@@ -247,7 +247,7 @@ describe('collection runner', () => {
 });
 
 describe('itinerary collection', () => {
-  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: '2027-01-10T18:00:00' });
+  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: '2027-01-10T18:00:00', lat: null, lng: null });
   const withItinerary = (read: NonNullable<CruiseProviderCollector['readItinerary']>): CruiseProviderCollector => {
     const base = mockRegistry.resolve('https://aida.de/finden/CO07270313/CLASSIC');
     return { id: base.id, label: base.label, source: base.source, headless: true, matches: () => true, collect: (ctx) => base.collect(ctx), readItinerary: read };

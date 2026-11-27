@@ -86,11 +86,11 @@ describe('AIDA results', () => {
       flightIncluded: false,
       ports: ['Las Palmas/Gran Canaria', 'Puerto Del Rosario', 'Funchal/Madeira'],
       itinerary: [
-        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: null },
-        { code: null, name: 'Puerto Del Rosario', seaDay: false, arrival: null, departure: null },
-        { code: null, name: null, seaDay: true, arrival: null, departure: null },
-        { code: null, name: 'Funchal/Madeira', seaDay: false, arrival: null, departure: null },
-        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: null },
+        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
+        { code: null, name: 'Puerto Del Rosario', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
+        { code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null },
+        { code: null, name: 'Funchal/Madeira', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
+        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
       ],
       imageUrl: 'https://img/1.jpg',
     });
@@ -101,10 +101,10 @@ describe('AIDA results', () => {
   it('turns the ports of the response into itinerary stops, times passed through as given', () => {
     const stops = aidaStops(LIVE_PORTS);
     expect(stops).toHaveLength(8);
-    expect(stops[0]).toEqual({ code: 'ESLPA', name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: '2026-11-28T22:00:00' });
-    expect(stops[1]).toEqual({ code: 'ESSPC', name: 'Santa Cruz/La Palma', seaDay: false, arrival: '2026-11-29T10:00:00', departure: '2026-11-29T20:00:00' });
-    expect(stops[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
-    expect(stops[7]).toEqual({ code: 'ESLPA', name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: '2026-12-05T05:00:00', departure: null });
+    expect(stops[0]).toEqual({ code: 'ESLPA', name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: '2026-11-28T22:00:00', lat: null, lng: null });
+    expect(stops[1]).toEqual({ code: 'ESSPC', name: 'Santa Cruz/La Palma', seaDay: false, arrival: '2026-11-29T10:00:00', departure: '2026-11-29T20:00:00', lat: null, lng: null });
+    expect(stops[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null });
+    expect(stops[7]).toEqual({ code: 'ESLPA', name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: '2026-12-05T05:00:00', departure: null, lat: null, lng: null });
   });
 
   it('maps empty or malformed times to null so the search never fails on them', () => {
@@ -113,12 +113,12 @@ describe('AIDA results', () => {
       { code: '', name: '', arrivalDateTime: undefined, departureDateTime: 'soon' },
     ]);
     expect(a).toMatchObject({ code: 'ESLPA', seaDay: false, arrival: null, departure: null });
-    expect(b).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
+    expect(b).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null });
   });
 
   it('keeps the code of a port that has no name (it is still a port, drawable by its code)', () => {
     const [a] = aidaStops([{ code: 'ESLPA', name: '', arrivalDateTime: '', departureDateTime: '' }]);
-    expect(a).toEqual({ code: 'ESLPA', name: null, seaDay: false, arrival: null, departure: null });
+    expect(a).toEqual({ code: 'ESLPA', name: null, seaDay: false, arrival: null, departure: null, lat: null, lng: null });
   });
 
   it('shifts the times to a sailing start by whole days, time of day kept', () => {
@@ -138,7 +138,7 @@ describe('AIDA results', () => {
     expect(crossing[0]).toMatchObject({ arrival: null, departure: '2027-01-24T22:00:00' });
     expect(crossing[3]).toMatchObject({ arrival: '2027-01-27T08:00:00', departure: '2027-01-27T18:00:00' });
     expect(crossing[7]).toMatchObject({ arrival: '2027-01-31T05:00:00', departure: null });
-    expect(crossing[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
+    expect(crossing[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null });
   });
 
   it('sets all times to null when the shift cannot be worked out', () => {

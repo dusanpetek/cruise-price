@@ -16,8 +16,8 @@ const itinerary = (over: Partial<Itinerary> = {}): Itinerary => ({
   provider: 'aida',
   readAt: '2026-01-01T00:00:00.000Z',
   stops: [
-    { code: 'DEHAM', name: 'Hamburg', seaDay: false, arrival: null, departure: '2026-05-01T18:00:00' },
-    { code: null, name: null, seaDay: true, arrival: null, departure: null },
+    { code: 'DEHAM', name: 'Hamburg', seaDay: false, arrival: null, departure: '2026-05-01T18:00:00', lat: null, lng: null },
+    { code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null },
   ],
   ...over,
 });
