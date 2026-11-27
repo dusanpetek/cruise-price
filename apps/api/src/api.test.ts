@@ -1,10 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { Browser, Page } from 'playwright';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProviderRegistry, createProviderRegistry, type BrowserFactory, type CruiseProviderCollector } from '@cruise/collector';
 import { createStores, type Stores } from '@cruise/shared/storage';
 import { createApiServer } from './app';
@@ -73,6 +73,45 @@ describe('routes', () => {
     expect((await call('PUT', `/api/routes/${id}`, { ...aida, name: 'Renamed' })).body.name).toBe('Renamed');
     expect((await call('DELETE', `/api/routes/${id}`)).status).toBe(204);
     expect((await call('GET', `/api/routes/${id}`)).status).toBe(404);
+  });
+
+  describe('itinerary', () => {
+    const stops = [{ code: 'ESPMI', name: 'Palma', seaDay: false, arrival: null, departure: '2026-12-01T17:00:00' }];
+    const itineraryFile = (id: string) => join(dir, 'itineraries', `${id}.json`);
+
+    it('answers 404 for an unknown route', async () => {
+      expect((await call('GET', '/api/routes/nope/itinerary')).status).toBe(404);
+    });
+
+    it('answers null while nothing was collected, then the stops', async () => {
+      const { body: route } = await call('POST', '/api/routes', aida);
+      expect(await call('GET', `/api/routes/${route.id}/itinerary`)).toMatchObject({ status: 200, body: null });
+      await stores.itineraries.put({ routeId: route.id, provider: 'aida', readAt: '2026-11-27T10:00:00.000Z', stops });
+      const res = await call('GET', `/api/routes/${route.id}/itinerary`);
+      expect(res.status).toBe(200);
+      expect(res.body.stops).toEqual(stops);
+    });
+
+    it('answers null for a corrupt itinerary file instead of failing', async () => {
+      const { body: route } = await call('POST', '/api/routes', aida);
+      await mkdir(join(dir, 'itineraries'), { recursive: true });
+      await writeFile(itineraryFile(route.id), '{not json');
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        expect(await call('GET', `/api/routes/${route.id}/itinerary`)).toMatchObject({ status: 200, body: null });
+        expect(error).toHaveBeenCalledTimes(1);
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    it('deleting the route removes its itinerary', async () => {
+      const { body: route } = await call('POST', '/api/routes', aida);
+      await stores.itineraries.put({ routeId: route.id, provider: 'aida', readAt: '2026-11-27T10:00:00.000Z', stops });
+      await expect(readFile(itineraryFile(route.id), 'utf8')).resolves.toContain('Palma');
+      expect((await call('DELETE', `/api/routes/${route.id}`)).status).toBe(204);
+      await expect(readFile(itineraryFile(route.id), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    });
   });
 
   it('sets and clears the favorite fare and cabin of a route', async () => {

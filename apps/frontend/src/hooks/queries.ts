@@ -69,6 +69,9 @@ export const useIntelligence = () => {
   return useQuery({ queryKey: ['intelligence', language], queryFn: api.intelligence, refetchInterval: 15_000 });
 };
 
+export const useItinerary = (routeId: string | undefined) =>
+  useQuery({ queryKey: ['itinerary', routeId], queryFn: () => api.getItinerary(routeId!), enabled: !!routeId });
+
 export const useRouteIntelligence = (id: string | undefined) => {
   const language = useUi((u) => u.language);
   return useQuery({ queryKey: ['route-intelligence', id, language], queryFn: () => api.routeIntelligence(id!), enabled: !!id, refetchInterval: 15_000 });

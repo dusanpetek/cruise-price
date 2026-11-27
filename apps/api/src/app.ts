@@ -338,7 +338,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, { stores, colle
     return send(res, 201, { run: outcome.run, skipped: outcome.skipped.map((r) => r.id) });
   }
 
-  const m = path.match(/^\/api\/routes(?:\/([^/]+)(?:\/(snapshots|collect|intelligence|favorite|dataset))?)?$/);
+  const m = path.match(/^\/api\/routes(?:\/([^/]+)(?:\/(snapshots|collect|intelligence|favorite|dataset|itinerary))?)?$/);
   if (!m) return send(res, 404, { error: 'Not found' });
   const [, id, sub] = m;
 
@@ -350,6 +350,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, { stores, colle
     if (method === 'PUT') return send(res, 200, await stores.routes.update(id, RouteInputSchema.parse(await readBody(req))));
     if (method === 'DELETE') {
       await stores.routes.remove(id);
+      await stores.itineraries.remove(id);
       return send(res, 204);
     }
   } else if (sub === 'snapshots') {
@@ -366,6 +367,15 @@ async function handle(req: IncomingMessage, res: ServerResponse, { stores, colle
     // The historical intelligence dataset; always rebuilt from the snapshots, so it is never stale.
     const route = await stores.routes.get(id);
     return send(res, 200, buildHistoricalDataset(route, await stores.snapshots.listByRoute(id) as CruiseSnapshot[], new Date().toISOString(), locale));
+  } else if (sub === 'itinerary' && method === 'GET') {
+    await stores.routes.get(id);
+    try {
+      return send(res, 200, await stores.itineraries.get(id));
+    } catch (e) {
+      // A corrupt itinerary file must not break the route page: log it and answer like "not collected yet".
+      console.error(`[api] itinerary of route ${id} is unreadable`, e);
+      return send(res, 200, null);
+    }
   } else if (sub === 'intelligence' && method === 'GET') {
     const route = await stores.routes.get(id);
     return send(res, 200, analyzeRoute(route, await stores.snapshots.listByRoute(id) as CruiseSnapshot[], locale));
