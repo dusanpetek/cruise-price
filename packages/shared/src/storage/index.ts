@@ -3,6 +3,7 @@ import { createCollectorLock } from './collectorLock';
 import { createConfigStore } from './configStore';
 import { createFailureStore } from './failureStore';
 import { createIntelligenceStore } from './intelligenceStore';
+import { createItineraryStore } from './itineraryStore';
 import { resolveDataDir } from './paths';
 import { createReportStore } from './reportStore';
 import { createRouteStore } from './routeStore';
@@ -17,6 +18,7 @@ export * from './configStore';
 export * from './errors';
 export * from './failureStore';
 export * from './intelligenceStore';
+export * from './itineraryStore';
 export * from './paths';
 export * from './reportStore';
 export * from './routeStore';
@@ -31,6 +33,7 @@ export function createStores(dataDir: string = resolveDataDir()) {
   return {
     dataDir,
     routes: createRouteStore(dataDir),
+    itineraries: createItineraryStore(dataDir),
     snapshots: createSnapshotStore(dataDir),
     runs: createRunStore(dataDir),
     reports: createReportStore(dataDir),
