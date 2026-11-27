@@ -15,3 +15,4 @@ export * from './dealSearch';
 export * from './copilot';
 export * from './historical';
 export * from './collectionRhythm';
+export * from './cabinGroups';

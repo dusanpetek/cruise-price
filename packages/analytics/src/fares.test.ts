@@ -55,6 +55,7 @@ describe('trip total', () => {
     const o = pricingOption({ cabinCategory: 'Balkonkabine', fareCode: 'PREMIUM', flightCode: 'FRA', passengers: 2, cruisePrice: 2998, flightPrice: 598, mandatoryFees: 100 });
     expect(o).toEqual({
       cabinCategory: 'Balkonkabine',
+      subcategory: null,
       fareCode: 'PREMIUM',
       flightCode: 'FRA',
       cruisePerPerson: 1499,

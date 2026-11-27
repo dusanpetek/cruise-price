@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { useUi } from '@/store/ui';
-import { formatWeekdayDate, sortRoutes, tripDates } from './utils';
+import { formatWeekdayDate, sortRoutes, stopLabel, tripDates } from './utils';
 
 afterAll(() => useUi.setState({ language: 'de' }));
 
@@ -66,5 +66,18 @@ describe('sortRoutes: cruise line first, then departure', () => {
     expect(sortRoutes(input, () => undefined, nameOf).map((x) => x.name)).toEqual(['A', 'B']);
     expect(input.map((x) => x.name)).toEqual(['B', 'A']);
     expect(sortRoutes([], () => null, nameOf)).toEqual([]);
+  });
+});
+
+describe('stopLabel', () => {
+  const stop = { code: null, name: null, seaDay: false, arrival: null, departure: null };
+
+  it('names a port, a sea day and a stop without a name', () => {
+    useUi.setState({ language: 'en' });
+    expect(stopLabel({ ...stop, name: 'Las Palmas' })).toBe('Las Palmas');
+    expect(stopLabel({ ...stop, seaDay: true })).toBe('Sea day');
+    expect(stopLabel(stop)).toBe('Unknown port');
+    useUi.setState({ language: 'de' });
+    expect(stopLabel({ ...stop, seaDay: true })).toBe('Seetag');
   });
 });

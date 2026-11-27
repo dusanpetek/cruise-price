@@ -49,3 +49,9 @@ export function sortRoutes<T extends { name: string; provider: string }>(routes:
     return a.name.localeCompare(b.name);
   });
 }
+
+/** What an itinerary row calls a stop: the port name, "Sea day", or "Unknown port" for a stop without a name. */
+export function stopLabel(stop: { name: string | null; seaDay: boolean }): string {
+  if (stop.seaDay) return t('Sea day');
+  return stop.name ?? t('Unknown port');
+}

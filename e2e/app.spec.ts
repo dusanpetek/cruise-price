@@ -1213,3 +1213,36 @@ test('legal pages are public and linked from the sign-in page', async ({ page })
   await page.getByTestId('legal-back').click();
   await expect(page).toHaveURL('/');
 });
+
+test('itinerary: cabin groups on the route page and the route popup with a map and a sea day', async ({ page }) => {
+  // The map must not depend on the internet: tiles are answered empty.
+  await page.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ status: 204, body: '' }));
+  await openDemo(page);
+  await page.getByRole('button', { name: 'Collect now' }).click();
+  await expect(page.getByRole('button', { name: 'Collect now' })).toBeEnabled();
+  await expect(page.getByTestId('cabin-group-table')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Route and times' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Route and times' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId('route-stop')).toHaveCount(3);
+  await expect(dialog.getByText('Sea day')).toBeVisible();
+  await expect(dialog.locator('.leaflet-container')).toBeVisible();
+  await expect(dialog.locator('.leaflet-interactive')).toHaveCount(3); // two markers and the line
+  await page.screenshot({ path: '.tmp/route-popup-desktop.png' });
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId('cabin-group-table')).toBeVisible();
+
+  // On a phone: stacked, no horizontal scroll, the map has a size.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('button', { name: 'Route and times' }).click();
+  await expect(dialog.locator('.leaflet-container')).toBeVisible();
+  const box = await dialog.locator('.leaflet-container').boundingBox();
+  expect(box!.height).toBeGreaterThan(150);
+  expect(box!.width).toBeGreaterThan(250);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: '.tmp/route-popup-375.png' });
+  await page.keyboard.press('Escape');
+});

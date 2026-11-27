@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import type { ItineraryStop } from '@cruise/domain';
 import type { RouteSearchResult } from './types';
 
 const BASE = 'https://aida.de';
@@ -13,7 +14,7 @@ export interface AidaItem {
   title?: string;
   routeGroupCode?: string;
   duration?: number;
-  ports?: { name: string | null }[];
+  ports?: { code?: string | null; name: string | null; arrivalDateTime?: string | null; departureDateTime?: string | null }[];
   cruiseItemVariant?: {
     fromCity?: string;
     toCity?: string;
@@ -32,6 +33,44 @@ export interface AidaItem {
 export const aidaJourneyUrl = (journey: string) => `${BASE}/finden/${journey}/CLASSIC?pax[adults]=2&pax[juveniles]=0&pax[children]=0&pax[babies]=0`;
 
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s/(-])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+
+/** Local wall-clock time as AIDA sends it. Anything else (empty, other shape) becomes null rather than failing the search. */
+const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+const stopTime = (t: string | null | undefined) => (t && LOCAL_DATE_TIME.test(t) ? t : null);
+
+const DAY_MS = 86_400_000;
+const utcDay = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10));
+const formatUtcDay = (ms: number) => {
+  const d = new Date(ms);
+  return `${String(d.getUTCFullYear()).padStart(4, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+};
+
+/**
+ * The itinerary of one AIDA item: its `ports` in order, sea days (code SEE or no name) included. Times are passed through as given.
+ *
+ * The ports in the response belong to the item's FIRST sailing, while the item lists many variants (same route on other dates).
+ * With `sailingStart` (YYYY-MM-DD) every time is moved by the whole days between the first departure of the ports and that date,
+ * the time of day is kept. This is an approximation (same route group, same day pattern). When the shift cannot be worked out
+ * (no departure in the ports, malformed `sailingStart`) all times are null: wrong dates are worse than none.
+ */
+export function aidaStops(ports: AidaItem['ports'], sailingStart?: string | null): ItineraryStop[] {
+  const stops = (ports ?? []).map((p) => {
+    const seaDay = p.code === 'SEE' || (!p.code && !p.name);
+    return {
+      code: seaDay ? null : p.code || null,
+      name: seaDay || !p.name ? null : titleCase(p.name),
+      seaDay,
+      arrival: stopTime(p.arrivalDateTime),
+      departure: stopTime(p.departureDateTime),
+    };
+  });
+  if (sailingStart === undefined) return stops;
+  const anchor = stops.find((s) => s.departure !== null)?.departure;
+  if (!anchor || !sailingStart || !/^\d{4}-\d{2}-\d{2}$/.test(sailingStart)) return stops.map((s) => ({ ...s, arrival: null, departure: null }));
+  const days = Math.round((utcDay(sailingStart) - utcDay(anchor.slice(0, 10))) / DAY_MS);
+  const shift = (t: string | null) => (t === null ? null : `${formatUtcDay(utcDay(t.slice(0, 10)) + days * DAY_MS)}${t.slice(10)}`);
+  return stops.map((s) => ({ ...s, arrival: shift(s.arrival), departure: shift(s.departure) }));
+}
 
 /**
  * AIDA groups the sailings of one route into one item: its variants are the same route on other dates and ships. Every variant
@@ -56,6 +95,8 @@ export function aidaResults(items: readonly AidaItem[]): RouteSearchResult[] {
         pricePerPerson: typeof v.amountPerPerson === 'number' ? v.amountPerPerson : null,
         flightIncluded: !!v.flightIncluded,
         ports,
+        // each variant gets the stops shifted to its own start date (see aidaStops: an approximation)
+        itinerary: aidaStops(item.ports, v.startDate ?? null),
         imageUrl: v.imageUrl ?? null,
       });
     }
@@ -77,6 +118,16 @@ export async function fetchAidaItems(page: Page): Promise<{ items: AidaItem[]; c
     }
   }
   throw lastError;
+}
+
+/** The stops of one sailing, from AIDA's search (the `ports` are the item's first sailing, so the matched variant's start date moves them). */
+export async function findAidaItinerary(page: Page, journeyId: string): Promise<ItineraryStop[] | null> {
+  const { items } = await fetchAidaItems(page);
+  for (const item of items) {
+    const variant = item.cruiseItemVariant?.find((v) => v.journeyIdentifier === journeyId);
+    if (variant) return aidaStops(item.ports, variant.startDate ?? null);
+  }
+  return null;
 }
 
 async function fetchAidaItemsOnce(page: Page): Promise<{ items: AidaItem[]; capped: boolean }> {

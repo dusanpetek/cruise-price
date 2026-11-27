@@ -35,6 +35,11 @@ In the *Add* form, **Search the cruise line** opens a search over what AIDA or M
 - A search takes the collector lock, like a collection: never two browsers on the sites at once (the API answers 409 while one runs). `GET /api/route-search?provider=aida&query=kanaren&from=2027-03-01&to=2027-03-31&limit=40`.
 - Try it from the command line: `pnpm --filter @cruise/collector try-search aida kanaren 2027-03-01 2027-03-31`. In `COLLECTOR_MODE=mock` the search answers from a small fixed catalogue without a browser. If a site changes, the parsers are in `collector/playwright/src/search/`; `pnpm test:live` checks them against the real sites.
 
+## Route itinerary and cabin groups
+
+- **Itinerary and map:** the route page has a **route map** button that opens a popup with the ports in order (local arrival and departure times, sea days marked). The collector reads the itinerary with every price run (`data/itineraries/<routeId>.json`, `GET /api/routes/:id/itinerary`) and overwrites it only when the provider's data changed. The map uses OpenStreetMap tiles, which your browser requests **only when the map is opened**. Until a route has an itinerary the page says "Itinerary not collected yet". Routes collected weekly (far-away cruises) and routes already priced today get their itinerary at the next run that actually collects them (or via **Collect anyway**).
+- **Cabin group view:** the price differences between a provider's cabin cards inside a group (the optional `subcategory` of a cabin; null for every provider card today).
+
 ## Deal intelligence (0.6)
 
 Everything is calculated on the **trip total** (cruise + flight + fees) and explained; nothing is a black box and no language model is involved.

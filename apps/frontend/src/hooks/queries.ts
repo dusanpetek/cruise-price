@@ -44,6 +44,7 @@ function useRefreshCollection() {
       qc.invalidateQueries({ queryKey: ['intelligence'] }),
       qc.invalidateQueries({ queryKey: ['route-intelligence'] }),
       qc.invalidateQueries({ queryKey: ['alerts'] }),
+      qc.invalidateQueries({ queryKey: ['itinerary'] }),
     ]);
 }
 
@@ -68,6 +69,9 @@ export const useIntelligence = () => {
   const language = useUi((u) => u.language);
   return useQuery({ queryKey: ['intelligence', language], queryFn: api.intelligence, refetchInterval: 15_000 });
 };
+
+export const useItinerary = (routeId: string | undefined) =>
+  useQuery({ queryKey: ['itinerary', routeId], queryFn: () => api.getItinerary(routeId!), enabled: !!routeId });
 
 export const useRouteIntelligence = (id: string | undefined) => {
   const language = useUi((u) => u.language);

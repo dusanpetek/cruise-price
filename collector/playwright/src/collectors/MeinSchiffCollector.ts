@@ -1,8 +1,9 @@
 import type { Locator, Page } from 'playwright';
-import { detectProviderId, PROVIDER_LABELS, type FareOption } from '@cruise/domain';
+import { detectProviderId, PROVIDER_LABELS, type FareOption, type ItineraryStop } from '@cruise/domain';
 import type { CollectedCruise, CollectedOption, CollectionContext, CruiseProviderCollector } from '../collection/types';
 import { buildMeinSchiffFares, type TariffColumn } from '../parsers/fares';
 import { parseCabins, parseGuests, parseMeinSchiffCruiseInfo, parseTotal, type ParsedCabin } from '../parsers/meinSchiff';
+import { parseMeinSchiffItinerary } from '../parsers/meinSchiffItinerary';
 import { normalizeText } from '../parsers/text';
 import { locate } from '../selectors/locate';
 import { loadMeinSchiffSelectors, type MeinSchiffSelectors } from '../selectors';
@@ -94,6 +95,32 @@ export class MeinSchiffCollector implements CruiseProviderCollector {
       options: tariffs.options,
       warnings: tariffs.warnings,
     };
+  }
+
+  /**
+   * The "Reiseverlauf" button opens a dialog with one block per day (port, arrival, departure, or a sea day). The page of the
+   * price run is reused; the dialog is closed again. Null when the button or the dialog is missing or lists no port.
+   */
+  async readItinerary(ctx: CollectionContext): Promise<ItineraryStop[] | null> {
+    const page = await ctx.getPage();
+    // The price run leaves the "Reise anpassen" dialog open, which hides the rest of the page; closing it discards nothing we need.
+    const priceDialog = locate(page, this.selectors.dialog).first();
+    if (await priceDialog.isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape');
+      await priceDialog.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+    }
+    const open = locate(page, this.selectors.itineraryOpen).first();
+    if (!(await open.isVisible().catch(() => false))) return null;
+    await open.click();
+    const dialog = locate(page, this.selectors.itineraryDialog).first();
+    try {
+      await dialog.waitFor({ state: 'visible', timeout: 8000 });
+    } catch {
+      return null;
+    }
+    const stops = parseMeinSchiffItinerary(normalizeText(await dialog.innerText()).split('\n'));
+    await page.keyboard.press('Escape');
+    return stops.some((s) => !s.seaDay) ? stops : null;
   }
 
   /**

@@ -1,5 +1,5 @@
 import { RouteSchema, type CollectionResult, type CruiseSnapshot, type Route } from '@cruise/domain';
-import type { FailureStore, SnapshotStore } from '@cruise/shared/storage';
+import type { FailureStore, ItineraryStore, SnapshotStore } from '@cruise/shared/storage';
 import { createPageSession, type BrowserFactory } from '../browser/browserFactory';
 import { buildSnapshotInput } from '../collection/snapshotBuilder';
 import { DEFAULT_COLLECTION_CONFIG, type CollectionConfig } from '../collection/types';
@@ -10,6 +10,8 @@ export interface CollectionRunnerDeps {
   snapshots: SnapshotStore;
   /** Where failure screenshots / HTML / logs go. Without it failures are still reported, just without files. */
   failures?: FailureStore;
+  /** Where the route's itinerary is kept; without it (or a collector that cannot read one) no itinerary is read. */
+  itineraries?: ItineraryStore;
   registry?: ProviderRegistry;
   browserFactory?: BrowserFactory;
   config?: CollectionConfig;
@@ -25,7 +27,7 @@ export interface CollectionOutcome {
 
 /** Collects one route and stores the snapshot. Never throws; failures land in diagnostics with evidence files. */
 export async function runCollection(route: Route, deps: CollectionRunnerDeps): Promise<CollectionOutcome> {
-  const { snapshots, failures, registry = providerRegistry, browserFactory, config = DEFAULT_COLLECTION_CONFIG, now = () => new Date() } = deps;
+  const { snapshots, itineraries, failures, registry = providerRegistry, browserFactory, config = DEFAULT_COLLECTION_CONFIG, now = () => new Date() } = deps;
   const startedAt = now();
   const t0 = performance.now();
   const diagnostics = new Diagnostics();
@@ -80,6 +82,18 @@ export async function runCollection(route: Route, deps: CollectionRunnerDeps): P
         }),
       ),
     );
+    if (collector.readItinerary && itineraries) {
+      // Only after the snapshot is stored: whatever happens here (the step stays recorded as failed) must not fail the price run.
+      try {
+        await diagnostics.step('read-itinerary', async () => {
+          const stops = await collector.readItinerary!({ url: route.url, routeId: route.id, config, diagnostics, getPage: session!.getPage, now: startedAt });
+          if (stops && stops.length > 0) await itineraries.put({ routeId: route.id, provider: collector.id, readAt: startedAt.toISOString(), stops });
+          else console.error(`[collector] no itinerary found for ${route.name}`); // null or empty never overwrites a stored itinerary
+        });
+      } catch (e) {
+        console.error(`[collector] could not read the itinerary of ${route.name}:`, (e as Error).message); // the step already recorded the error in the diagnostics
+      }
+    }
     return finish(snapshot);
   } catch (e) {
     const error = e as Error;

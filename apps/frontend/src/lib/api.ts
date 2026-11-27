@@ -15,6 +15,7 @@ import {
   type DailyReport,
   type Route,
   type Favorite,
+  type Itinerary,
   type ProviderId,
   type RouteSearchOutcome,
   type RouteInput,
@@ -77,6 +78,7 @@ export const api = {
   logout: async (): Promise<void> => void (await request('/auth/logout', { method: 'POST' })),
   intelligence: async (): Promise<Portfolio> => (await request(`/intelligence?lang=${currentLocale()}`)) as Portfolio,
   routeIntelligence: async (id: string): Promise<RouteIntelligence> => (await request(`/routes/${id}/intelligence?lang=${currentLocale()}`)) as RouteIntelligence,
+  getItinerary: async (id: string): Promise<Itinerary | null> => (await request(`/routes/${id}/itinerary`)) as Itinerary | null,
   listAlerts: async (q: AlertQuery = {}): Promise<Alert[]> => {
     const params = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]);
     return z.array(AlertSchema).parse(await request(`/alerts${params.size ? `?${params}` : ''}`));

@@ -4,7 +4,7 @@ import { PricingSnapshotSchema, makePricing, round2, type PricingSnapshot } from
 import { PROVIDER_IDS } from './Provider';
 
 export const SNAPSHOT_SOURCES = ['mock', 'manual', 'live'] as const;
-export const SNAPSHOT_SCHEMA_VERSION = 4;
+export const SNAPSHOT_SCHEMA_VERSION = 5;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
@@ -14,6 +14,8 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
  */
 export const CabinPriceSchema = z.object({
   category: z.string().min(1),
+  /** Sub-category within the category (e.g. a cabin variant); null when the provider does not distinguish one. */
+  subcategory: z.string().min(1).nullable().default(null),
   packagePerPerson: z.number().nonnegative(),
   flightPerPerson: z.number().nonnegative(),
   packageTotal: z.number().nonnegative(),
@@ -116,7 +118,8 @@ export type SnapshotInput = z.input<typeof SnapshotInputSchema>;
  *  - v1 (MVP) had no `schemaVersion` and only the headline prices;
  *  - v2 added provider, cruise info, party and cabins, but no fares: they upgrade to "fare unknown" (no fares, no options);
  *  - v3 added fares and options; v4 adds per-person and trip prices everywhere. They are derived from the stored totals
- *    (exact, since totals are per person x passengers), with no mandatory fees (none were ever stored).
+ *    (exact, since totals are per person x passengers), with no mandatory fees (none were ever stored);
+ *  - v5 adds the optional `subcategory` to cabins and options: older documents upgrade to null.
  */
 export function migrateSnapshot(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
@@ -126,6 +129,7 @@ export function migrateSnapshot(raw: unknown): unknown {
   }
   if (doc.schemaVersion === 2) doc = { ...doc, fares: [], options: [], warnings: [], schemaVersion: 3 };
   if (doc.schemaVersion === 3) doc = withTripPrices(doc);
+  if (doc.schemaVersion === 4) doc = withSubcategories(doc);
   return doc;
 }
 
@@ -141,6 +145,12 @@ function withTripPrices(doc: Record<string, unknown>): Record<string, unknown> {
   });
   const pricing = makePricing({ passengers: n, cruiseTotal: (doc.packagePrice as number) ?? 0, flightTotal: (doc.flightSurcharge as number) ?? 0 });
   return { ...doc, cabins, options, pricing, schemaVersion: 4 };
+}
+
+function withSubcategories(doc: Record<string, unknown>): Record<string, unknown> {
+  const cabins = ((doc.cabins as Record<string, unknown>[] | undefined) ?? []).map((c) => ({ ...c, subcategory: null }));
+  const options = ((doc.options as Record<string, unknown>[] | undefined) ?? []).map((o) => ({ ...o, subcategory: null }));
+  return { ...doc, cabins, options, schemaVersion: 5 };
 }
 
 export function parseSnapshot(raw: unknown): CruiseSnapshot {

@@ -32,6 +32,7 @@ export function pricingOption(args: {
   const p = makePricing({ passengers: args.passengers, cruiseTotal: args.cruisePrice, flightTotal: args.flightPrice, ...(args.mandatoryFees !== undefined ? { mandatoryFees: args.mandatoryFees } : {}) });
   return {
     cabinCategory: args.cabinCategory,
+    subcategory: null,
     fareCode: args.fareCode,
     flightCode: args.flightCode,
     cruisePerPerson: p.cruisePerPerson,

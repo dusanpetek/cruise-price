@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowDown, ArrowRight, ArrowUp, LineChart as LineChartIcon, ListTree, Plane, RefreshCw, Tags } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, LineChart as LineChartIcon, ListTree, Map as MapIcon, Plane, RefreshCw, Tags } from 'lucide-react';
 import {
   analyzeSeries,
   cabinBand,
   cabinCategories,
   cabinComparison,
+  cabinGroupBreakdown,
   computeAnalytics,
   filterByRange,
   observationsToPoints,
@@ -17,6 +18,8 @@ import { PROVIDER_LABELS } from '@cruise/domain';
 import { formatMoney } from '@cruise/shared';
 import { CabinComparison, ChartCard, ComponentTimeline, MinMaxBand, PackageTimeline } from '@/components/charts/charts';
 import { ChartFilters } from '@/components/charts/ChartFilters';
+import { CabinGroupTable } from '@/components/CabinGroupTable';
+import { RouteMapDialog } from '@/components/RouteMapDialog';
 import { TimingCard } from '@/components/TimingCard';
 import { ApiError } from '@/lib/api';
 import { ProviderLogo } from '@/components/ProviderLogo';
@@ -25,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
 import { PriceCells, PriceHeaders, PriceTriple } from '@/components/PriceTriple';
 import { RecommendationBadge } from '@/components/RecommendationBadge';
-import { useRouteIntelligence, useRouteMutations, useRoutes, useSnapshotMutations, useSnapshots } from '@/hooks/queries';
+import { useItinerary, useRouteIntelligence, useRouteMutations, useRoutes, useSnapshotMutations, useSnapshots } from '@/hooks/queries';
 import { cn, formatDate, pctText, signed } from '@/lib/utils';
 import { useUi } from '@/store/ui';
 import { t } from '@/lib/i18n';
@@ -55,6 +58,8 @@ export default function RouteDetail() {
   const { data: routes } = useRoutes();
   const route = routes?.find((r) => r.id === id) ?? null;
   const { data: snapshots = [], isLoading } = useSnapshots(id);
+  const { data: itinerary } = useItinerary(id);
+  const [mapOpen, setMapOpen] = useState(false);
   const { chartRange, chartCabin, chartFare, language, setChartFare, setChartCabin } = useUi();
   const { favorite: saveFavorite } = useRouteMutations();
   const [showCruise, setShowCruise] = useState(false);
@@ -87,6 +92,8 @@ export default function RouteDetail() {
   );
   const analytics = view.analytics;
   const filteredSnapshots = useMemo(() => filterByRange(snapshots, chartRange), [snapshots, chartRange]);
+  // newest snapshot that has cabins (a manual one has none); the newest one when none has, so the table shows its empty text
+  const groupSnapshot = [...filteredSnapshots].reverse().find((s) => s.cabins.length > 0) ?? filteredSnapshots.at(-1);
   const series = useMemo(() => observationsToPoints(filterByRange(selected, chartRange)), [selected, chartRange]);
   const chartStats = useMemo(() => computeAnalytics(series), [series]);
 
@@ -121,6 +128,12 @@ export default function RouteDetail() {
             <Link to={`/routes/${route.id}/forecast`} className="inline-flex items-center gap-1 text-primary hover:underline">
               <LineChartIcon size={14} /> {t('Forecast and charts')}
             </Link>
+            {itinerary && itinerary.stops.length > 0 && (
+              <Button type="button" size="sm" variant="outline" onClick={() => setMapOpen(true)}>
+                <MapIcon size={14} /> {t('Route and times')}
+              </Button>
+            )}
+            {itinerary === null && <span className="text-xs text-muted-foreground">{t('Itinerary not collected yet')}</span>}
           </div>
           {latest?.cruise.ship && (
             <p className="mt-1 text-sm text-muted-foreground">
@@ -336,6 +349,7 @@ export default function RouteDetail() {
             >
               <CabinComparison rows={cabinComparison(filteredSnapshots, fareCode)} categories={cabin ? [cabin] : cabins} currency={currency} />
             </ChartCard>
+            {groupSnapshot && <CabinGroupTable breakdown={cabinGroupBreakdown(groupSnapshot, fareCode)} currency={currency} />}
             <ChartCard
               testId="chart-band"
               title={fareName ? `${t('Cheapest vs most expensive cabin (total trip price)')} · ${fareName}` : t('Cheapest vs most expensive cabin (total trip price)')}
@@ -389,6 +403,7 @@ export default function RouteDetail() {
           )}
         </>
       )}
+      {itinerary && <RouteMapDialog open={mapOpen} title={route.name} stops={itinerary.stops} onClose={() => setMapOpen(false)} />}
     </div>
   );
 }
