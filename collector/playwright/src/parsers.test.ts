@@ -143,6 +143,57 @@ describe('Mein Schiff itinerary', () => {
   it('returns no stops for text without an itinerary', () => {
     expect(parseMeinSchiffItinerary(['Reiseverlauf'])).toEqual([]);
   });
+
+  describe('17-night Transatlantik trip (abbreviated months)', () => {
+    // Captured 2026-11-27 from the "Reiseverlauf" dialog of the Palma -> Montego Bay trip: months are "Okt." / "Nov.".
+    const tLines = normalizeText(readFileSync(new URL('./__fixtures__/meinSchiffItineraryTransatlantik.txt', import.meta.url), 'utf8')).split('\n');
+
+    it('reads exactly the real ports and sea days with times, no date line as a stop', () => {
+      expect(parseMeinSchiffItinerary(tLines)).toEqual([
+        port('Palma (Mallorca)', '2027-10-22T04:00:00', '2027-10-22T22:00:00'),
+        sea,
+        port('Gibraltar', '2027-10-24T07:00:00', '2027-10-24T17:00:00'),
+        sea,
+        port('Las Palmas (Gran Canaria)', '2027-10-26T09:00:00', '2027-10-26T19:00:00'),
+        sea, sea, sea, sea, sea, sea,
+        port("St. John's (Antigua)", '2027-11-02T07:30:00', '2027-11-02T19:00:00'),
+        port('Philipsburg (St. Maarten)', '2027-11-03T07:30:00', '2027-11-03T22:00:00'),
+        port('Road Town (Tortola)', '2027-11-04T07:00:00', '2027-11-04T13:00:00'),
+        port('La Romana', '2027-11-05T07:00:00', '2027-11-05T22:00:00'),
+        sea,
+        port('Ocho Rios (Jamaika)', '2027-11-07T07:00:00', '2027-11-07T20:00:00'),
+        port('Montego Bay (Jamaika)', '2027-11-08T07:00:00', '2027-11-08T22:00:00'),
+      ]);
+    });
+  });
+
+  describe('month tokens', () => {
+    const one = (dateLine: string) => parseMeinSchiffItinerary(['Anreise', dateLine, 'Palma (Mallorca)', 'Ankunft', '04:00']);
+    const arrival = (dateLine: string) => one(dateLine)[0]?.arrival;
+    it('accepts full and abbreviated German months, with or without the dot, any case', () => {
+      const cases: Array<[string, string]> = [
+        ['Jan', '01'], ['Januar', '01'], ['Feb.', '02'], ['Februar', '02'], ['Mär', '03'], ['Mär.', '03'], ['Mrz', '03'], ['März', '03'],
+        ['Apr.', '04'], ['April', '04'], ['Mai', '05'], ['Jun.', '06'], ['Juni', '06'], ['Jul', '07'], ['Juli', '07'], ['Aug.', '08'],
+        ['August', '08'], ['Sep.', '09'], ['Sept.', '09'], ['September', '09'], ['Okt', '10'], ['Okt.', '10'], ['OKT.', '10'], ['Oktober', '10'],
+        ['Nov.', '11'], ['November', '11'], ['Dez.', '12'], ['dezember', '12'],
+      ];
+      for (const [token, mm] of cases) expect(arrival(`Fr., 22. ${token} 2027`), token).toBe(`2027-${mm}-22T04:00:00`);
+    });
+    it('never makes a port of a date-shaped line, even with an unknown month', () => {
+      expect(one('Fr., 22. Foo. 2027')).toEqual([port('Palma (Mallorca)', null, null)]);
+      const twoDays = ['Anreise', 'Fr., 22. Foo. 2027', 'Palma (Mallorca)', 'Tag 1', 'Sa., 23. Okt. 2027', 'Gibraltar'];
+      expect(parseMeinSchiffItinerary(twoDays)).toEqual([port('Palma (Mallorca)', null, null), port('Gibraltar', null, null)]);
+    });
+    it('gives null for impossible dates', () => {
+      expect(arrival('Fr., 31. Nov. 2027')).toBeNull();
+      expect(arrival('Fr., 30. Feb. 2027')).toBeNull();
+      expect(arrival('Fr., 29. Feb. 2028')).toBe('2028-02-29T04:00:00');
+    });
+    it('never makes a port of labels, weekdays, dates or times', () => {
+      const out = parseMeinSchiffItinerary(['Anreise', 'Fr., 22. Okt. 2027', 'Palma (Mallorca)', 'Abreise', 'Fr.', 'Fr., 22.', 'Fr., 22. Okt. 2027', 'Seetag-Info 22:00', '22:00']);
+      expect(out).toEqual([port('Palma (Mallorca)', null, null)]);
+    });
+  });
 });
 
 describe('selector registry', () => {
