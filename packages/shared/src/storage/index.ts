@@ -3,6 +3,7 @@ import { createCollectorLock } from './collectorLock';
 import { createConfigStore } from './configStore';
 import { createFailureStore } from './failureStore';
 import { createIntelligenceStore } from './intelligenceStore';
+import { createGeocodeStore } from './geocodeStore';
 import { createItineraryStore } from './itineraryStore';
 import { resolveDataDir } from './paths';
 import { createReportStore } from './reportStore';
@@ -17,6 +18,7 @@ export * from './collectorLock';
 export * from './configStore';
 export * from './errors';
 export * from './failureStore';
+export * from './geocodeStore';
 export * from './intelligenceStore';
 export * from './itineraryStore';
 export * from './paths';
@@ -45,6 +47,7 @@ export function createStores(dataDir: string = resolveDataDir()) {
     config: createConfigStore(dataDir),
     intelligence: createIntelligenceStore(dataDir),
     searchCache: createSearchCacheStore(dataDir),
+    geocodes: createGeocodeStore(dataDir),
   };
 }
 export type Stores = ReturnType<typeof createStores>;
