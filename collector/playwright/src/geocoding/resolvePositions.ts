@@ -22,7 +22,7 @@ function countryOf(code: string | null): string | null {
 const normalize = (name: string) =>
   name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
