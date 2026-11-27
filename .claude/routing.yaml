@@ -1,0 +1,19 @@
+maximumModel: sonnet
+
+keywords:
+  opus:
+    - architecture
+    - redesign
+    - migration
+    - multi-agent
+    - distributed
+
+  sonnet:
+    - react
+    - java
+    - spring
+    - flowable
+    - refactoring
+    - debugging
+
+defaultModel: haiku
