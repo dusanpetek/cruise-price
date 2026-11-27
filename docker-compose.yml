@@ -13,6 +13,8 @@ services:
       AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?set AUTH_SESSION_SECRET in .env (pnpm --filter @cruise/api auth:setup)}
       AUTH_TOTP_SECRET: ${AUTH_TOTP_SECRET:-} # set: the sign-in also asks for the code of the authenticator app
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-1} # 0 only for http://localhost tests
+      GEOCODE: ${GEOCODE:-1} # 0 = never ask OpenStreetMap for port positions (the map then only shows ports of the built-in table)
+      GEOCODE_USER_AGENT: ${GEOCODE_USER_AGENT:-} # User-Agent sent to OpenStreetMap; empty = the default that names this app
       # COLLECT_CRON: "0 7 * * *"   # default: daily at 07:00; each route is collected at most once per day
     volumes:
       - cruise-data:/data

@@ -1,9 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ItineraryStop } from '@cruise/domain';
-import { createGeocodeStore, type GeocodeStore } from '@cruise/shared/storage';
+import { CollectorLockedError, createGeocodeStore, createStores, type GeocodeStore } from '@cruise/shared/storage';
+import { backfillPositions } from './geocoding/backfill';
 import { createNominatimGeocoder } from './geocoding/nominatim';
 import { readOnlyStore, resolveStopPositions } from './geocoding/resolvePositions';
 
@@ -121,6 +122,67 @@ describe('createNominatimGeocoder', () => {
   it('AIDA: a qualifier in the name does not matter, the country filter rules', async () => {
     const { fetchFn } = fakeFetch(() => [hit(1, 1, 'place', 'city', 'Somewhere')]);
     expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: 'es' })).toEqual({ lat: 1, lng: 1 });
+  });
+
+  it('Mein Schiff: a plain name needs its first address part to contain the name', async () => {
+    const other = fakeFetch(() => [hit(43.3, -8.4, 'place', 'city', 'A Coruña, Galicia, España')]);
+    expect(await geocoderWith(other.fetchFn).geocode({ name: 'Hamburg', country: null })).toBeNull();
+    const same = fakeFetch(() => [hit(53.55, 10, 'place', 'city', 'Hamburg, Deutschland')]);
+    expect(await geocoderWith(same.fetchFn).geocode({ name: 'Hamburg', country: null })).toEqual({ lat: 53.55, lng: 10 });
+  });
+
+  it('Mein Schiff: asks with accept-language de,en; AIDA does not', async () => {
+    const ms = fakeFetch(() => [hit(53.55, 10, 'place', 'city', 'Hamburg, Deutschland')]);
+    await geocoderWith(ms.fetchFn).geocode({ name: 'Hamburg', country: null });
+    expect(ms.calls[0]!.url.searchParams.get('accept-language')).toBe('de,en');
+    const aida = fakeFetch(() => [hit(1, 1)]);
+    await geocoderWith(aida.fetchFn).geocode({ name: 'X', country: 'sc' });
+    expect(aida.calls[0]!.url.searchParams.has('accept-language')).toBe(false);
+  });
+
+  it('reads the User-Agent from GEOCODE_USER_AGENT, an option wins over it', async () => {
+    const before = process.env.GEOCODE_USER_AGENT;
+    process.env.GEOCODE_USER_AGENT = 'from-env/2';
+    try {
+      const a = fakeFetch(() => [hit(1, 1)]);
+      await geocoderWith(a.fetchFn).geocode({ name: 'X', country: 'sc' });
+      expect(a.calls[0]!.headers['User-Agent']).toBe('from-env/2');
+      const b = fakeFetch(() => [hit(1, 1)]);
+      await geocoderWith(b.fetchFn, undefined, { userAgent: 'opt/1' }).geocode({ name: 'X', country: 'sc' });
+      expect(b.calls[0]!.headers['User-Agent']).toBe('opt/1');
+    } finally {
+      if (before === undefined) delete process.env.GEOCODE_USER_AGENT;
+      else process.env.GEOCODE_USER_AGENT = before;
+    }
+  });
+
+  it('times out a request that never answers, throws and keeps working afterwards', async () => {
+    let hang = true;
+    const fetchFn = (async (_input: unknown, init?: RequestInit) => {
+      if (!hang) return new Response(JSON.stringify([hit(1, 1)]), { status: 200 });
+      return new Promise<Response>((_resolve, reject) => init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason)));
+    }) as unknown as typeof fetch;
+    const geocoder = createNominatimGeocoder({ fetch: fetchFn, timeoutMs: 5, minIntervalMs: 0 });
+    await expect(geocoder.geocode({ name: 'A', country: 'sc' })).rejects.toThrow();
+    hang = false;
+    expect(await geocoder.geocode({ name: 'A', country: 'sc' })).toEqual({ lat: 1, lng: 1 });
+  });
+
+  it.each([403, 429])('after an HTTP %i the geocoder refuses every further request without calling fetch', async (status) => {
+    const { fetchFn, spy } = fakeFetch(() => status);
+    const geocoder = geocoderWith(fetchFn);
+    await expect(geocoder.geocode({ name: 'A', country: 'sc' })).rejects.toThrow(String(status));
+    await expect(geocoder.geocode({ name: 'B', country: 'sc' })).rejects.toThrow(/blocked|refus/i);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 500 does not trip the breaker', async () => {
+    let n = 0;
+    const { fetchFn, spy } = fakeFetch(() => (n++ === 0 ? 500 : [hit(1, 1)]));
+    const geocoder = geocoderWith(fetchFn);
+    await expect(geocoder.geocode({ name: 'A', country: 'sc' })).rejects.toThrow();
+    await geocoder.geocode({ name: 'B', country: 'sc' });
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('waits at least minIntervalMs between two requests, not before the first', async () => {
@@ -265,5 +327,71 @@ describe('resolveStopPositions', () => {
     expect(stops).toEqual(before);
     expect(out.map((s) => s.code)).toEqual(['ESLPA', 'SCXYZ', null]);
     expect(out[1]).not.toBe(stops[1]);
+  });
+});
+
+describe('backfillPositions (positions:resolve)', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'cruise-'));
+  });
+  afterEach(() => rm(dir, { recursive: true, force: true }));
+
+  const stopAt = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: null, lat: null, lng: null });
+  const setup = async (names: string[]) => {
+    const stores = createStores(dir);
+    for (const name of names) {
+      const route = await stores.routes.create({ name, provider: 'aida', url: 'https://aida.de/x' });
+      await stores.itineraries.put({ routeId: route.id, provider: 'aida', readAt: '2026-11-27T10:00:00.000Z', stops: [stopAt('SCXYZ', 'Port Victoria')] });
+    }
+    return stores;
+  };
+  const geocoder = () => ({ geocode: vi.fn(async () => ({ lat: -4.6, lng: 55.4 })) });
+
+  it('resolves and stores every itinerary and reports the counts', async () => {
+    const stores = await setup(['A', 'B']);
+    const lines: string[] = [];
+    const code = await backfillPositions({ stores, geocoder: geocoder(), dryRun: false, log: (l) => lines.push(l) });
+    expect(code).toBe(0);
+    expect(lines).toEqual(['A: 1 resolved, 0 unresolved', 'B: 1 resolved, 0 unresolved']);
+    for (const r of await stores.routes.list()) expect((await stores.itineraries.get(r.id))!.stops[0]).toMatchObject({ lat: -4.6, lng: 55.4 });
+  });
+
+  it('dry run writes neither itineraries nor cache', async () => {
+    const stores = await setup(['A']);
+    await backfillPositions({ stores, geocoder: geocoder(), dryRun: true, log: () => {} });
+    const [route] = await stores.routes.list();
+    expect((await stores.itineraries.get(route!.id))!.stops[0]).toMatchObject({ lat: null, lng: null });
+    expect(await stores.geocodes.get('sc|port victoria')).toBeNull();
+  });
+
+  it('a held collector lock answers 1 and touches nothing', async () => {
+    const stores = await setup(['A']);
+    const g = geocoder();
+    const lines: string[] = [];
+    const locked = { ...stores, lock: { acquire: async () => Promise.reject(new CollectorLockedError({ pid: 1, startedAt: '2026-11-27T10:00:00.000Z' })) } } as never;
+    expect(await backfillPositions({ stores: locked, geocoder: g, dryRun: false, log: (l) => lines.push(l) })).toBe(1);
+    expect(lines).toEqual(['a collection is running, try again later']);
+    expect(g.geocode).not.toHaveBeenCalled();
+    const [route] = await stores.routes.list();
+    expect((await stores.itineraries.get(route!.id))!.stops[0]).toMatchObject({ lat: null });
+  });
+
+  it('releases the lock afterwards', async () => {
+    const stores = await setup(['A']);
+    await backfillPositions({ stores, geocoder: geocoder(), dryRun: false, log: () => {} });
+    const release = await stores.lock.acquire();
+    await release();
+  });
+
+  it('one unreadable itinerary does not stop the others', async () => {
+    const stores = await setup(['A', 'B']);
+    const [a, b] = await stores.routes.list();
+    await writeFile(join(dir, 'itineraries', `${a!.id}.json`), '{broken');
+    const lines: string[] = [];
+    expect(await backfillPositions({ stores, geocoder: geocoder(), dryRun: false, log: (l) => lines.push(l) })).toBe(0);
+    expect(lines[0]).toMatch(/^A: skipped \(.+\)$/);
+    expect(lines[1]).toBe('B: 1 resolved, 0 unresolved');
+    expect((await stores.itineraries.get(b!.id))!.stops[0]).toMatchObject({ lat: -4.6 });
   });
 });

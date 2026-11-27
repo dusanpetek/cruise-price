@@ -4,7 +4,7 @@ import type { Stores } from '@cruise/shared/storage';
 import { newId } from '@cruise/shared';
 import { createAlertPipeline, type AfterSnapshot } from '../alerts/pipeline';
 import type { BrowserFactory } from '../browser/browserFactory';
-import { createNominatimGeocoder } from '../geocoding/nominatim';
+import { createNominatimGeocoder, type Geocoder } from '../geocoding/nominatim';
 import { collectorModeFromEnv, type ProviderRegistry } from '../providers/providerRegistry';
 import { runCollection, type CollectionOutcome } from '../runner/collectionRunner';
 import { skipDecision, type SkipDecision } from './frequency';
@@ -38,6 +38,15 @@ export interface BatchOutcome {
   skippedDetail: (SkipDecision & { route: Route })[];
 }
 
+let defaultGeocoder: Geocoder | undefined;
+/** One geocoder per process, so consecutive collections share its queue (1 request/second) and its 403/429 breaker. */
+export function getDefaultGeocoder(): Geocoder {
+  return (defaultGeocoder ??= createNominatimGeocoder());
+}
+export function resetDefaultGeocoder(): void {
+  defaultGeocoder = undefined;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -47,7 +56,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function collectRoutes(routes: readonly Route[], deps: BatchDeps, options: BatchOptions): Promise<BatchOutcome> {
   const { stores, registry, browserFactory, config } = deps;
   // Positions of ports the table does not know come from OpenStreetMap; GEOCODE=0 and mock mode never call out.
-  const geocoder = process.env.GEOCODE !== '0' && collectorModeFromEnv() === 'live' ? createNominatimGeocoder() : undefined;
+  const geocoder = process.env.GEOCODE !== '0' && collectorModeFromEnv() === 'live' ? getDefaultGeocoder() : undefined;
   const afterSnapshot = deps.afterSnapshot === undefined ? createAlertPipeline({ stores }) : deps.afterSnapshot;
   const { trigger, delayBetweenMs = 0, now = () => new Date(), log = () => undefined } = options;
   const release = await stores.lock.acquire(now());

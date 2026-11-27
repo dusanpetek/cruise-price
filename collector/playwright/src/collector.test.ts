@@ -7,7 +7,7 @@ import type { CollectionRun, ItineraryStop, Route } from '@cruise/domain';
 import { CollectorLockedError, createStores, type Stores } from '@cruise/shared/storage';
 import type { BrowserFactory } from './browser/browserFactory';
 import { createPageSession } from './browser/browserFactory';
-import { collectRoutes } from './collection/batch';
+import { collectRoutes, getDefaultGeocoder, resetDefaultGeocoder } from './collection/batch';
 import { buildSnapshotInput } from './collection/snapshotBuilder';
 import type { CollectedCruise, CruiseProviderCollector } from './collection/types';
 import { MockCollector } from './collectors/MockCollector';
@@ -517,6 +517,35 @@ describe('cruises that leave in more than six months: at most once a week', () =
     expect(sameDay.skippedDetail[0]).toMatchObject({ reason: 'daily', nextDay: '2026-11-21' });
     const nextDay = await collectRoutes([route], { stores, registry: liveRegistry }, { trigger: 'manual', now: at('2026-11-21T07:00:00.000Z') });
     expect(nextDay.outcomes).toHaveLength(1);
+  });
+});
+
+describe('collectRoutes geocoder wiring', () => {
+  const lookups = async (env: Record<string, string>) => {
+    resetDefaultGeocoder();
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+    const fetchFn = vi.fn(async () => new Response('[]', { status: 200 }));
+    vi.stubGlobal('fetch', fetchFn);
+    try {
+      const route = await aidaRoute(stores);
+      const base = mockRegistry.resolve(route.url);
+      const collector: CruiseProviderCollector = { ...base, id: base.id, label: base.label, source: base.source, headless: true, matches: () => true, collect: (ctx) => base.collect(ctx), readItinerary: async () => [{ code: 'SCXYZ', name: 'Port Victoria', seaDay: false, arrival: null, departure: null, lat: null, lng: null }] };
+      await collectRoutes([route], { stores, registry: new ProviderRegistry([collector]), afterSnapshot: null }, { trigger: 'manual', now: () => new Date('2026-11-17T10:00:00.000Z') });
+      return fetchFn.mock.calls.length;
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      resetDefaultGeocoder();
+    }
+  };
+
+  it('asks OpenStreetMap in live mode', async () => expect(await lookups({ COLLECTOR_MODE: 'live', GEOCODE: '1' })).toBe(1));
+  it('never with GEOCODE=0', async () => expect(await lookups({ COLLECTOR_MODE: 'live', GEOCODE: '0' })).toBe(0));
+  it('never in mock mode', async () => expect(await lookups({ COLLECTOR_MODE: 'mock', GEOCODE: '1' })).toBe(0));
+  it('shares one geocoder between collections of a process', () => {
+    resetDefaultGeocoder();
+    expect(getDefaultGeocoder()).toBe(getDefaultGeocoder());
+    resetDefaultGeocoder();
   });
 });
 

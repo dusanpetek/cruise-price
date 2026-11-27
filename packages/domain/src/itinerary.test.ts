@@ -131,6 +131,11 @@ describe('stored stop position', () => {
     expect(drawn[1]).toMatchObject({ lat: -4.62, lng: 55.45 });
   });
 
+  it('does not draw a stop object that lacks the position fields (unparsed API JSON)', () => {
+    const raw = { code: 'XXXXX', name: 'Nowhere', seaDay: false, arrival: null, departure: null } as unknown as ItineraryStop;
+    expect(drawableStops([raw])).toEqual([]);
+  });
+
   it('lets the table coordinate win over a stored position', () => {
     const table = portCoordinate({ code: 'ESLPA', name: null })!;
     const [drawn] = drawableStops([stop({ code: 'ESLPA', lat: 1, lng: 2 })]);

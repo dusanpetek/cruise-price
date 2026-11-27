@@ -35,7 +35,7 @@ export function drawableStops(stops: ItineraryStop[]): { stop: ItineraryStop; la
     if (stop.seaDay) continue;
     const at = portCoordinate(stop);
     if (at) drawable.push({ stop, lat: at.lat, lng: at.lng });
-    else if (stop.lat !== null && stop.lng !== null) drawable.push({ stop, lat: stop.lat, lng: stop.lng });
+    else if (typeof stop.lat === 'number' && typeof stop.lng === 'number') drawable.push({ stop, lat: stop.lat, lng: stop.lng });
   }
   return drawable;
 }
