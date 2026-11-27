@@ -5,11 +5,11 @@ apps/frontend        React + Vite + Tailwind + shadcn-style UI, React Router, Zu
 apps/api             Thin node:http JSON API over the stores; Vite proxies /api to it in dev
 collector/playwright Provider adapters, selector registry, browser factory, collection runner, diagnostics, batch runs, scheduler
   selectors/         aida.json, mein-schiff.json: every locator and text pattern used on the provider sites
-packages/domain      Zod schemas + types (Route, CruiseSnapshot v2, CollectionRun, DailyReport, provider detection). Browser-safe.
+packages/domain      Zod schemas + types (Route, CruiseSnapshot v5, CollectionRun, DailyReport, provider detection). Browser-safe.
 packages/analytics   ALL calculations: price statistics, history metrics, chart series/filters, run summaries, daily report. Browser-safe.
 packages/notifications Channels (email, Teams, Telegram, Pushover), router with retry, settings loading
 packages/shared      Small helpers (browser-safe) + `@cruise/shared/storage` (the only code that touches the filesystem)
-data/                routes/ snapshots/ runs/ reports/ failures/{screenshots,html,logs}/ collector.lock
+data/                routes/ snapshots/ itineraries/ runs/ reports/ failures/{screenshots,html,logs}/ collector.lock
 ```
 
 Dependency direction: `domain` ← `analytics`, `shared` ← `collector` ← `api`. `frontend` uses `domain`, `analytics` and the root of `shared`, never `/storage`.
@@ -26,7 +26,7 @@ Dependency direction: `domain` ← `analytics`, `shared` ← `collector` ← `ap
 
 ## Collection flow
 
-`runCollection(route)`: resolve the collector from the URL → launch Chromium (headless unless the provider needs a window) → `collector.collect(ctx)` returns `CollectedCruise` (cabins with per-person package and flight prices) → `SnapshotBuilder` computes party totals and the headline (cheapest cabin) → `snapshots.create` (validated, checksummed, create-only). It never throws: a failure becomes `diagnostics` plus a **failure package** (full-page PNG, HTML dump, JSON log with the error, URL, title and every step's timing) under `data/failures/`.
+`runCollection(route)`: resolve the collector from the URL → launch Chromium (headless unless the provider needs a window) → `collector.collect(ctx)` returns `CollectedCruise` (cabins with per-person package and flight prices) → `SnapshotBuilder` computes party totals and the headline (cheapest cabin) → `snapshots.create` (validated, checksummed, create-only) → `read-itinerary` (only if the collector has `readItinerary` and an itinerary store is given; runs after the snapshot is stored, so it never fails the run: an error is logged and kept as a failed step, `null` or an empty list does not overwrite a stored itinerary; `itineraries.put` answers `updated` only when the provider's data changed). AIDA reads the provider's search response, which adds about 20 s per AIDA run; Mein Schiff reads the "Reiseverlauf" dialog. It never throws: a failure becomes `diagnostics` plus a **failure package** (full-page PNG, HTML dump, JSON log with the error, URL, title and every step's timing) under `data/failures/`.
 
 `collectRoutes(routes)` wraps that for a batch: takes `data/collector.lock` (a second run is refused, stale locks from dead processes or older than 30 min are taken over), runs routes one after another with a pause between them, writes `data/runs/<id>.json`, and regenerates `data/reports/daily-report.json` (plus `daily-<date>.json`).
 
@@ -48,7 +48,9 @@ Checked live: on both sites the flight cost is identical for every cabin categor
 
 ## Data model
 
-Snapshot **v2** (`schemaVersion: 2`): provider, source (`live` / `mock` / `manual`), `cruise` (name, ship, departure, nights), `party` (adults, airport), `cabins[]` (per person and party totals, flight kept separate), and the headline `packagePrice` / `flightSurcharge` (cheapest cabin, whole party). Files are never rewritten; v1 (MVP) files are upgraded in memory on read.
+Snapshot **v5** (`schemaVersion: 5`; history: v2 cabins, v3 fares and options, v4 per-person and trip prices, v5 optional `subcategory` on cabins and options, null for all provider cards today): provider, source (`live` / `mock` / `manual`), `cruise` (name, ship, departure, nights), `party` (adults, airport), `cabins[]` (per person and party totals, flight kept separate), and the headline `packagePrice` / `flightSurcharge` (cheapest cabin, whole party). Files are never rewritten; v1 (MVP) and older files are upgraded in memory on read.
+
+**Itinerary** (`data/itineraries/<routeId>.json`, one document per route): ordered stops (code, name, sea day, local arrival and departure times), the provider and the read time. The collector overwrites it when the provider's data changed. `GET /api/routes/:id/itinerary` answers the itinerary, `null` when it was not collected yet or the file is unreadable, and 404 for an unknown route. Routes collected weekly and routes already priced today get theirs at the next run that actually collects them (or via "Collect anyway").
 
 Persistence hardening: Zod validation before every save, create-only writes, a sha256 checksum over each snapshot (edits and truncation are detected on read; `inspect()` reports corrupt files, `listByRoute()` skips them with a warning), and path-safe ids.
 
