@@ -10,7 +10,7 @@ import { skipDecision, type SkipDecision } from './frequency';
 import type { CollectionConfig } from './types';
 
 export interface BatchDeps {
-  stores: Pick<Stores, 'snapshots' | 'runs' | 'reports' | 'failures' | 'lock' | 'alerts' | 'alertRules' | 'config'> & Partial<Pick<Stores, 'intelligence'>>;
+  stores: Pick<Stores, 'snapshots' | 'runs' | 'reports' | 'failures' | 'lock' | 'alerts' | 'alertRules' | 'config'> & Partial<Pick<Stores, 'intelligence' | 'itineraries'>>;
   registry?: ProviderRegistry;
   browserFactory?: BrowserFactory;
   config?: CollectionConfig;
@@ -75,6 +75,7 @@ export async function collectRoutes(routes: readonly Route[], deps: BatchDeps, o
       const outcome = await runCollection(route, {
         snapshots: stores.snapshots,
         failures: stores.failures,
+        ...(stores.itineraries ? { itineraries: stores.itineraries } : {}),
         ...(registry ? { registry } : {}),
         ...(browserFactory ? { browserFactory } : {}),
         ...(config ? { config } : {}),

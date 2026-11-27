@@ -1,5 +1,5 @@
 import type { Page } from 'playwright';
-import type { CruiseInfo, FareOption, Party, ProviderId } from '@cruise/domain';
+import type { CruiseInfo, FareOption, ItineraryStop, Party, ProviderId } from '@cruise/domain';
 import type { Diagnostics } from '../runner/diagnostics';
 
 /** Business configuration for every collection: who travels and from where. */
@@ -55,4 +55,6 @@ export interface CruiseProviderCollector {
   readonly headless: boolean;
   matches(url: string): boolean;
   collect(ctx: CollectionContext): Promise<CollectedCruise>;
+  /** The route's stops, read after a successful collection (the page is still open). null when the provider does not show them. */
+  readItinerary?(ctx: CollectionContext): Promise<ItineraryStop[] | null>;
 }

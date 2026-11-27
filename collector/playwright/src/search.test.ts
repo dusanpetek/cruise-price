@@ -5,7 +5,7 @@ import type { BrowserFactory } from './browser/browserFactory';
 import { aidaJourneyUrl, aidaResults, aidaStops, cacheKeyOf, cachedRouteSearch, cleanMeinSchiffUrl, fold, inRange, matchesQuery, parseMeinSchiffCard, refine, searchRoutes, SEARCH_CACHE_TTL_MS, type AidaItem, type SearchCache } from './search/routeSearch';
 import { MOCK_CATALOG } from './search/mock';
 import { MAX_CARDS, MEIN_SCHIFF_TIMEOUTS } from './search/meinSchiff';
-import { AIDA_TIMEOUTS } from './search/aida';
+import { AIDA_TIMEOUTS, findAidaItinerary } from './search/aida';
 
 // ---- fixtures taken from the real sites (shortened) ----
 const AIDA_ITEMS: AidaItem[] = [
@@ -431,5 +431,36 @@ describe('search cache', () => {
     await searchRoutes('aida', {}, { mode: 'mock', cache: mock });
     expect(mock.read).not.toHaveBeenCalled();
     expect(mock.write).not.toHaveBeenCalled();
+  });
+});
+
+describe('findAidaItinerary', () => {
+  const ports = [
+    { code: 'ESLPA', name: 'LAS PALMAS', arrivalDateTime: null, departureDateTime: '2027-01-10T18:00:00' },
+    { code: 'SEE', name: null, arrivalDateTime: null, departureDateTime: null },
+    { code: 'ESSPC', name: 'SANTA CRUZ DE LA PALMA', arrivalDateTime: '2027-01-12T08:00:00', departureDateTime: '2027-01-12T17:00:00' },
+  ];
+  const items: AidaItem[] = [
+    { title: 'Other', ports: [], cruiseItemVariant: [{ journeyIdentifier: 'X1', startDate: '2027-02-01' }] },
+    { title: 'Kanaren', ports, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2027-01-10' }, { journeyIdentifier: 'J2', startDate: '2027-01-24' }] },
+  ];
+  const pageWith = (evaluate: () => unknown) =>
+    ({ goto: vi.fn(async () => undefined), waitForLoadState: vi.fn(async () => undefined), evaluate: vi.fn(async () => evaluate()) }) as unknown as Page;
+
+  it('returns the stops of the item that has the journey', async () => {
+    const stops = await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'J1');
+    expect(stops).toHaveLength(3);
+    expect(stops![0]).toMatchObject({ code: 'ESLPA', departure: '2027-01-10T18:00:00' });
+    expect(stops![1]).toMatchObject({ seaDay: true });
+  });
+
+  it('shifts the times of a later sailing to its own start date', async () => {
+    const stops = await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'J2');
+    expect(stops![0]!.departure).toBe('2027-01-24T18:00:00');
+    expect(stops![2]).toMatchObject({ arrival: '2027-01-26T08:00:00', departure: '2027-01-26T17:00:00' });
+  });
+
+  it('returns null for an unknown journey', async () => {
+    expect(await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'NOPE')).toBeNull();
   });
 });

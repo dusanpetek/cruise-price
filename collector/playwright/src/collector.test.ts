@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Browser, Page } from 'playwright';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CollectionRun, Route } from '@cruise/domain';
+import type { CollectionRun, ItineraryStop, Route } from '@cruise/domain';
 import { CollectorLockedError, createStores, type Stores } from '@cruise/shared/storage';
 import type { BrowserFactory } from './browser/browserFactory';
 import { createPageSession } from './browser/browserFactory';
@@ -243,6 +243,82 @@ describe('collection runner', () => {
     const { diagnostics } = await runCollection(route, { snapshots: stores.snapshots, registry: new ProviderRegistry([failingCollector('x', false)]) });
     expect(diagnostics).toMatchObject({ status: 'failed' });
     expect(diagnostics.failure).toBeUndefined();
+  });
+});
+
+describe('itinerary collection', () => {
+  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: '2027-01-10T18:00:00' });
+  const withItinerary = (read: NonNullable<CruiseProviderCollector['readItinerary']>): CruiseProviderCollector => {
+    const base = mockRegistry.resolve('https://aida.de/finden/CO07270313/CLASSIC');
+    return { id: base.id, label: base.label, source: base.source, headless: true, matches: () => true, collect: (ctx) => base.collect(ctx), readItinerary: read };
+  };
+  const run = (route: Route, collector: CruiseProviderCollector, itineraries?: Stores['itineraries'], now = new Date('2026-11-17T10:00:00.000Z')) =>
+    runCollection(route, { snapshots: stores.snapshots, ...(itineraries ? { itineraries } : {}), registry: new ProviderRegistry([collector]), now: () => now });
+
+  it('stores the itinerary after the snapshot and records the step; a changed itinerary is updated', async () => {
+    const route = await aidaRoute(stores);
+    const stops = [stop('ESLPA', 'Las Palmas')];
+    const first = await run(route, withItinerary(async () => stops), stores.itineraries);
+    expect(first.diagnostics.status).toBe('success');
+    expect(first.diagnostics.steps.map((s) => s.name)).toEqual(['resolve-provider', 'aida:mock-price', 'collect', 'store-snapshot', 'read-itinerary']);
+    expect(await stores.itineraries.get(route.id)).toEqual({ routeId: route.id, provider: 'aida', readAt: '2026-11-17T10:00:00.000Z', stops });
+
+    const changed = [stop('ESLPA', 'Las Palmas'), stop('ESSPC', 'La Palma')];
+    await run(route, withItinerary(async () => changed), stores.itineraries, new Date('2026-11-18T10:00:00.000Z'));
+    expect((await stores.itineraries.get(route.id))!.stops).toEqual(changed);
+  });
+
+  it('never fails the price run when the itinerary cannot be read', async () => {
+    const route = await aidaRoute(stores);
+    const out = await run(
+      route,
+      withItinerary(async () => {
+        throw new Error('AIDA search down');
+      }),
+      stores.itineraries,
+    );
+    expect(out.diagnostics.status).toBe('success');
+    expect(out.result).toMatchObject({ status: 'success', error: null });
+    expect(out.snapshot).not.toBeNull();
+    expect(await stores.snapshots.listByRoute(route.id)).toHaveLength(1);
+    expect(await stores.itineraries.get(route.id)).toBeNull();
+    expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false, error: expect.stringContaining('AIDA search down') });
+  });
+
+  it('writes nothing when the collector finds no itinerary, and survives a failing store', async () => {
+    const route = await aidaRoute(stores);
+    const none = await run(route, withItinerary(async () => null), stores.itineraries);
+    expect(none.diagnostics.status).toBe('success');
+    expect(await stores.itineraries.get(route.id)).toBeNull();
+
+    const broken = { ...stores.itineraries, put: async () => Promise.reject(new Error('disk full')) } as Stores['itineraries'];
+    const out = await run(route, withItinerary(async () => [stop('ESLPA', 'Las Palmas')]), broken, new Date('2026-11-18T10:00:00.000Z'));
+    expect(out.diagnostics.status).toBe('success');
+    expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false });
+  });
+
+  it('does nothing without readItinerary or without an itinerary store', async () => {
+    const route = await aidaRoute(stores);
+    const base = withItinerary(async () => null);
+    const { readItinerary: _omit, ...withoutRead } = base;
+    const plain = await run(route, withoutRead, stores.itineraries);
+    expect(plain.diagnostics.steps.map((s) => s.name)).not.toContain('read-itinerary');
+    expect(await stores.itineraries.get(route.id)).toBeNull();
+
+    const read = vi.fn(async () => [stop('ESLPA', 'Las Palmas')]);
+    const out = await run(route, withItinerary(read), undefined, new Date('2026-11-18T10:00:00.000Z'));
+    expect(read).not.toHaveBeenCalled();
+    expect(out.diagnostics.steps.map((s) => s.name)).not.toContain('read-itinerary');
+  });
+
+  it('the mock collector reads a fixed itinerary with drawable ports', async () => {
+    const route = await aidaRoute(stores);
+    const out = await runCollection(route, { snapshots: stores.snapshots, itineraries: stores.itineraries, registry: mockRegistry });
+    expect(out.diagnostics.status).toBe('success');
+    const it = (await stores.itineraries.get(route.id))!;
+    expect(it.stops.map((s) => s.code)).toEqual(['ESLPA', 'SEE', 'ESSPC']);
+    expect(it.stops).toHaveLength(3);
+    expect(it.stops.filter((s) => s.seaDay)).toHaveLength(1);
   });
 });
 

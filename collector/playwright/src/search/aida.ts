@@ -120,6 +120,16 @@ export async function fetchAidaItems(page: Page): Promise<{ items: AidaItem[]; c
   throw lastError;
 }
 
+/** The stops of one sailing, from AIDA's search (the `ports` are the item's first sailing, so the matched variant's start date moves them). */
+export async function findAidaItinerary(page: Page, journeyId: string): Promise<ItineraryStop[] | null> {
+  const { items } = await fetchAidaItems(page);
+  for (const item of items) {
+    const variant = item.cruiseItemVariant?.find((v) => v.journeyIdentifier === journeyId);
+    if (variant) return aidaStops(item.ports, variant.startDate ?? null);
+  }
+  return null;
+}
+
 async function fetchAidaItemsOnce(page: Page): Promise<{ items: AidaItem[]; capped: boolean }> {
   await page.goto(`${BASE}/finden`, { waitUntil: 'domcontentloaded', timeout: AIDA_TIMEOUTS.navigationMs });
   await page.waitForLoadState('networkidle', { timeout: AIDA_TIMEOUTS.settleMs }).catch(() => undefined);
