@@ -92,6 +92,8 @@ export default function RouteDetail() {
   );
   const analytics = view.analytics;
   const filteredSnapshots = useMemo(() => filterByRange(snapshots, chartRange), [snapshots, chartRange]);
+  // newest snapshot that has cabins (a manual one has none); the newest one when none has, so the table shows its empty text
+  const groupSnapshot = [...filteredSnapshots].reverse().find((s) => s.cabins.length > 0) ?? filteredSnapshots.at(-1);
   const series = useMemo(() => observationsToPoints(filterByRange(selected, chartRange)), [selected, chartRange]);
   const chartStats = useMemo(() => computeAnalytics(series), [series]);
 
@@ -347,7 +349,7 @@ export default function RouteDetail() {
             >
               <CabinComparison rows={cabinComparison(filteredSnapshots, fareCode)} categories={cabin ? [cabin] : cabins} currency={currency} />
             </ChartCard>
-            {filteredSnapshots.at(-1) && <CabinGroupTable breakdown={cabinGroupBreakdown(filteredSnapshots.at(-1)!, fareCode)} currency={currency} />}
+            {groupSnapshot && <CabinGroupTable breakdown={cabinGroupBreakdown(groupSnapshot, fareCode)} currency={currency} />}
             <ChartCard
               testId="chart-band"
               title={fareName ? `${t('Cheapest vs most expensive cabin (total trip price)')} · ${fareName}` : t('Cheapest vs most expensive cabin (total trip price)')}

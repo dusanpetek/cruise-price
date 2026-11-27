@@ -268,15 +268,23 @@ describe('itinerary collection', () => {
     expect((await stores.itineraries.get(route.id))!.stops).toEqual(changed);
   });
 
-  it('never fails the price run when the itinerary cannot be read', async () => {
+  it('never fails the price run when the itinerary cannot be read, and says so in the log', async () => {
     const route = await aidaRoute(stores);
-    const out = await run(
-      route,
-      withItinerary(async () => {
-        throw new Error('AIDA search down');
-      }),
-      stores.itineraries,
-    );
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let out: Awaited<ReturnType<typeof run>>;
+    try {
+      out = await run(
+        route,
+        withItinerary(async () => {
+          throw new Error('AIDA search down');
+        }),
+        stores.itineraries,
+      );
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(`[collector] could not read the itinerary of ${route.name}:`, 'AIDA search down');
+    } finally {
+      spy.mockRestore();
+    }
     expect(out.diagnostics.status).toBe('success');
     expect(out.result).toMatchObject({ status: 'success', error: null });
     expect(out.snapshot).not.toBeNull();
@@ -285,16 +293,34 @@ describe('itinerary collection', () => {
     expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false, error: expect.stringContaining('AIDA search down') });
   });
 
-  it('writes nothing when the collector finds no itinerary, and survives a failing store', async () => {
+  it.each([
+    ['no itinerary (null)', null],
+    ['an empty stop list', [] as ItineraryStop[]],
+  ])('writes nothing and logs once when the collector finds %s', async (_label, found) => {
     const route = await aidaRoute(stores);
-    const none = await run(route, withItinerary(async () => null), stores.itineraries);
-    expect(none.diagnostics.status).toBe('success');
-    expect(await stores.itineraries.get(route.id)).toBeNull();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const none = await run(route, withItinerary(async () => found), stores.itineraries);
+      expect(none.diagnostics.status).toBe('success');
+      expect(await stores.itineraries.get(route.id)).toBeNull();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(`[collector] no itinerary found for ${route.name}`);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 
-    const broken = { ...stores.itineraries, put: async () => Promise.reject(new Error('disk full')) } as Stores['itineraries'];
-    const out = await run(route, withItinerary(async () => [stop('ESLPA', 'Las Palmas')]), broken, new Date('2026-11-18T10:00:00.000Z'));
-    expect(out.diagnostics.status).toBe('success');
-    expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false });
+  it('survives a failing itinerary store', async () => {
+    const route = await aidaRoute(stores);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const broken = { ...stores.itineraries, put: async () => Promise.reject(new Error('disk full')) } as Stores['itineraries'];
+      const out = await run(route, withItinerary(async () => [stop('ESLPA', 'Las Palmas')]), broken, new Date('2026-11-18T10:00:00.000Z'));
+      expect(out.diagnostics.status).toBe('success');
+      expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('does nothing without readItinerary or without an itinerary store', async () => {

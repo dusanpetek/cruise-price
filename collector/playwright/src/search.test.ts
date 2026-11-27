@@ -116,6 +116,11 @@ describe('AIDA results', () => {
     expect(b).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
   });
 
+  it('keeps the code of a port that has no name (it is still a port, drawable by its code)', () => {
+    const [a] = aidaStops([{ code: 'ESLPA', name: '', arrivalDateTime: '', departureDateTime: '' }]);
+    expect(a).toEqual({ code: 'ESLPA', name: null, seaDay: false, arrival: null, departure: null });
+  });
+
   it('shifts the times to a sailing start by whole days, time of day kept', () => {
     const times = (start?: string | null) => aidaStops(LIVE_PORTS, start).map((x) => [x.arrival, x.departure]);
     expect(times('2026-11-28')).toEqual(times());

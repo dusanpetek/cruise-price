@@ -8,6 +8,7 @@ const MONTHS: Record<string, string> = {
 const DAY_HEADING = /^(Anreise|Tag \d+)$/;
 const DATE_LINE = /^[^,\d]+,\s*(\d{1,2})\.\s*(\p{L}+)\s+(\d{4})$/u;
 const TIME = /^(\d{1,2}):(\d{2})$/;
+const ANY_TIME = /\d{1,2}:\d{2}/;
 const SEA_DAY = /^Seetag$/;
 const ARRIVAL = /^Ankunft$/;
 const DEPARTURE = /^Abfahrt$/;
@@ -66,6 +67,9 @@ export function parseMeinSchiffItinerary(lines: string[]): ItineraryStop[] {
       const [, h, min] = TIME.exec(line)!;
       if (date) current[pending] = `${date}T${h!.padStart(2, '0')}:${min}:00`;
       pending = null;
+    } else if (ANY_TIME.test(line) || pending) {
+      // a time in another format, or a note while Ankunft/Abfahrt still waits for its time: never a port
+      continue;
     } else {
       current = { code: null, name: line, seaDay: false, arrival: null, departure: null };
       stops.push(current);

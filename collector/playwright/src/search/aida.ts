@@ -55,10 +55,10 @@ const formatUtcDay = (ms: number) => {
  */
 export function aidaStops(ports: AidaItem['ports'], sailingStart?: string | null): ItineraryStop[] {
   const stops = (ports ?? []).map((p) => {
-    const seaDay = p.code === 'SEE' || !p.name;
+    const seaDay = p.code === 'SEE' || (!p.code && !p.name);
     return {
       code: seaDay ? null : p.code || null,
-      name: seaDay ? null : titleCase(p.name as string),
+      name: seaDay || !p.name ? null : titleCase(p.name),
       seaDay,
       arrival: stopTime(p.arrivalDateTime),
       departure: stopTime(p.departureDateTime),

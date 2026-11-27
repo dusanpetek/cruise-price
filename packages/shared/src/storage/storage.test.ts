@@ -169,6 +169,37 @@ describe('snapshotStore', () => {
       expect(await store.listByRoute('r1')).toHaveLength(1); // corrupt files are skipped with a warning
     });
 
+    it('reads a stored v4 file with a valid checksum as v5 with subcategory null and unchanged prices', async () => {
+      const folder = join(dir, 'snapshots', 'r1');
+      await createSnapshotStore(dir).create(input); // creates the folder
+      const v4 = {
+        schemaVersion: 4,
+        id: 'old-v4',
+        routeId: 'r1',
+        provider: 'aida',
+        collectedAt: '2026-01-01T00:00:00.000Z',
+        source: 'live',
+        currency: 'EUR',
+        cruise: { name: 'N', ship: 'S', departure: '2027-03-13', durationNights: 7 },
+        party: { adults: 2, departureAirport: 'FRA' },
+        cabins: [{ category: 'Inside', packagePerPerson: 649, flightPerPerson: 590, packageTotal: 1298, flightTotal: 1180, mandatoryFees: 0, tripPerPerson: 1239, tripTotal: 2478 }],
+        packagePrice: 1298,
+        flightSurcharge: 1180,
+        pricing: { cruisePerPerson: 649, cruiseTotal: 1298, flightPerPerson: 590, flightTotal: 1180, mandatoryFees: 0, tripPerPerson: 1239, tripTotal: 2478 },
+        fares: [],
+        options: [],
+        warnings: [],
+      };
+      // the checksum the store wrote for v4 documents: over the raw document without the checksum field
+      await writeFile(join(folder, 'old-v4.json'), JSON.stringify({ ...v4, checksum: sha256(v4) }));
+      const { snapshots, corrupt } = await createSnapshotStore(dir).inspect('r1');
+      expect(corrupt).toEqual([]);
+      const old = snapshots.find((x) => x.id === 'old-v4')!;
+      expect(old.schemaVersion).toBe(5);
+      expect(old.cabins[0]).toMatchObject({ category: 'Inside', subcategory: null, packagePerPerson: 649, tripTotal: 2478 });
+      expect(old.pricing).toEqual(v4.pricing);
+    });
+
     it('reads legacy v1 files (no schemaVersion, no checksum) and upgrades them in memory', async () => {
       const folder = join(dir, 'snapshots', 'r1');
       const v1 = { id: 'legacy', routeId: 'r1', collectedAt: '2026-01-01T00:00:00.000Z', source: 'mock', currency: 'EUR', packagePrice: 1234, flightSurcharge: 250 };

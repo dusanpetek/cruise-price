@@ -123,6 +123,18 @@ describe('Mein Schiff itinerary', () => {
     expect(parseMeinSchiffItinerary(noTimes)).toEqual([port('Las Palmas (Gran Canaria)', null, null), sea, port('Funchal (Madeira)', null, null)]);
   });
 
+  it('never takes a time or a footnote after Ankunft/Abfahrt for a port', () => {
+    const day = (...rest: string[]) => ['Anreise', 'So., 14. März 2027', 'Las Palmas (Gran Canaria)', ...rest];
+    // times in other formats than HH:MM
+    expect(parseMeinSchiffItinerary(day('Ankunft', '04:30 Uhr', 'Abfahrt', '4:30 PM'))).toEqual([port('Las Palmas (Gran Canaria)', null, null)]);
+    // a stray time line without a label
+    expect(parseMeinSchiffItinerary(day('04:30 Uhr'))).toEqual([port('Las Palmas (Gran Canaria)', null, null)]);
+    // a footnote while a label still waits for its time is ignored, the time after it is still used
+    expect(parseMeinSchiffItinerary(day('Ankunft', '* Änderungen vorbehalten', '04:30', 'Abfahrt', '22:00'))).toEqual([
+      port('Las Palmas (Gran Canaria)', '2027-03-14T04:30:00', '2027-03-14T22:00:00'),
+    ]);
+  });
+
   it('leaves the times null when the day cannot be dated', () => {
     const undated = ['Anreise', 'So., 14. Foo 2027', 'Las Palmas (Gran Canaria)', 'Ankunft', '04:30', 'Abfahrt', '22:00'];
     expect(parseMeinSchiffItinerary(undated)).toEqual([port('Las Palmas (Gran Canaria)', null, null)]);

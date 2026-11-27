@@ -87,10 +87,11 @@ export async function runCollection(route: Route, deps: CollectionRunnerDeps): P
       try {
         await diagnostics.step('read-itinerary', async () => {
           const stops = await collector.readItinerary!({ url: route.url, routeId: route.id, config, diagnostics, getPage: session!.getPage, now: startedAt });
-          if (stops) await itineraries.put({ routeId: route.id, provider: collector.id, readAt: startedAt.toISOString(), stops });
+          if (stops && stops.length > 0) await itineraries.put({ routeId: route.id, provider: collector.id, readAt: startedAt.toISOString(), stops });
+          else console.error(`[collector] no itinerary found for ${route.name}`); // null or empty never overwrites a stored itinerary
         });
-      } catch {
-        // see above
+      } catch (e) {
+        console.error(`[collector] could not read the itinerary of ${route.name}:`, (e as Error).message); // the step already recorded the error in the diagnostics
       }
     }
     return finish(snapshot);
