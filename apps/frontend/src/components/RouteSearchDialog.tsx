@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PROVIDER_IDS, PROVIDER_LABELS, type ProviderId, type RouteSearchResult } from '@cruise/domain';
 import { formatMoney } from '@cruise/shared';
+import { RouteMapDialog } from '@/components/RouteMapDialog';
 import { ProviderLogo } from '@/components/ProviderLogo';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
@@ -28,6 +29,7 @@ export function RouteSearchDialog({ open, initialProvider, onClose, onPick }: { 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const search = useRouteSearch();
+  const [mapOf, setMapOf] = useState<RouteSearchResult | null>(null);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -47,11 +49,18 @@ export function RouteSearchDialog({ open, initialProvider, onClose, onPick }: { 
   };
   const data = search.data;
 
-  return createPortal(
+  // The map dialog opens on top of this one; its close/cancel events bubble through the React tree, so only react to our own.
+  const onlyOwn = (e: React.SyntheticEvent<HTMLDialogElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <>
+    {createPortal(
     <dialog
       ref={ref}
-      onClose={onClose}
-      onCancel={onClose}
+      onClose={onlyOwn}
+      onCancel={onlyOwn}
       aria-label={t('Search cruises')}
       data-testid="route-search"
       className="m-auto max-h-[90vh] w-[min(52rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-black/50"
@@ -125,6 +134,7 @@ export function RouteSearchDialog({ open, initialProvider, onClose, onPick }: { 
                           {r.flightIncluded && <span className="text-muted-foreground"> · {t('flight included')}</span>}
                         </div>
                       </div>
+                      {r.itinerary?.length ? <Button type="button" size="sm" variant="outline" onClick={() => setMapOf(r)} aria-label={t('Route of {title}', { title: r.title })} data-testid="route-search-route">{t('Route')}</Button> : null}
                       <Button type="button" size="sm" onClick={() => onPick(r)} aria-label={t('Pick {title}', { title: routeNameOf(r) })} data-testid="route-search-pick">{t('Pick')}</Button>
                     </li>
                   );
@@ -136,5 +146,8 @@ export function RouteSearchDialog({ open, initialProvider, onClose, onPick }: { 
       </div>
     </dialog>,
     document.body,
+    )}
+    <RouteMapDialog open={mapOf !== null} title={mapOf?.title ?? ''} stops={mapOf?.itinerary ?? []} onClose={() => setMapOf(null)} />
+    </>
   );
 }

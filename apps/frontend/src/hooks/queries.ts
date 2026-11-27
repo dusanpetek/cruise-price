@@ -44,6 +44,7 @@ function useRefreshCollection() {
       qc.invalidateQueries({ queryKey: ['intelligence'] }),
       qc.invalidateQueries({ queryKey: ['route-intelligence'] }),
       qc.invalidateQueries({ queryKey: ['alerts'] }),
+      qc.invalidateQueries({ queryKey: ['itinerary'] }),
     ]);
 }
 
