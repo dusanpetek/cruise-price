@@ -103,7 +103,7 @@ describe('snapshots and collection', () => {
   it('adds a manual snapshot and lists the history', async () => {
     const { body: route } = await call('POST', '/api/routes', aida);
     const manual = await call('POST', `/api/routes/${route.id}/snapshots`, { packagePrice: 1500, flightSurcharge: 300 });
-    expect(manual).toMatchObject({ status: 201, body: { source: 'manual', provider: 'aida', packagePrice: 1500, schemaVersion: 4, pricing: { cruiseTotal: 1500, flightTotal: 300, tripTotal: 1800, tripPerPerson: 900 } } });
+    expect(manual).toMatchObject({ status: 201, body: { source: 'manual', provider: 'aida', packagePrice: 1500, schemaVersion: 5, pricing: { cruiseTotal: 1500, flightTotal: 300, tripTotal: 1800, tripPerPerson: 900 } } });
     expect((await call('POST', `/api/routes/${route.id}/snapshots`, { packagePrice: -1 })).status).toBe(400);
     expect((await call('GET', `/api/routes/${route.id}/snapshots`)).body).toHaveLength(1);
     expect((await call('GET', '/api/routes/nope/snapshots')).status).toBe(404);

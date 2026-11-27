@@ -3,7 +3,7 @@ import { makePricing, type CruiseSnapshot } from '@cruise/domain';
 import { FAR_FUTURE_INTERVAL_DAYS, FAR_FUTURE_MONTHS, addDays, addMonths, isFarFuture, skipDecision } from './collection/frequency';
 
 const snap = (day: string, departure: string | null, source: CruiseSnapshot['source'] = 'live'): CruiseSnapshot => ({
-  schemaVersion: 4,
+  schemaVersion: 5,
   id: `s-${day}-${source}`,
   routeId: 'r',
   provider: 'aida',

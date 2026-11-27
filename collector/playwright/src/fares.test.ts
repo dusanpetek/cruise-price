@@ -171,8 +171,8 @@ describe('snapshot builder with fares', () => {
   const input = buildSnapshotInput(args);
 
   it('prices every option as cruise + flight = total, with the flight of its cabin', () => {
-    expect(input.options).toContainEqual({ cabinCategory: 'Balkonkabine', fareCode: 'PREMIUM', flightCode: 'FRA', cruisePerPerson: 1095, cruisePrice: 2190, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1685, totalPrice: 3370 });
-    expect(input.options).toContainEqual({ cabinCategory: 'Innenkabine', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePerPerson: 640, cruisePrice: 1280, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1230, totalPrice: 2460 });
+    expect(input.options).toContainEqual({ cabinCategory: 'Balkonkabine', subcategory: null, fareCode: 'PREMIUM', flightCode: 'FRA', cruisePerPerson: 1095, cruisePrice: 2190, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1685, totalPrice: 3370 });
+    expect(input.options).toContainEqual({ cabinCategory: 'Innenkabine', subcategory: null, fareCode: 'CLASSIC', flightCode: 'FRA', cruisePerPerson: 640, cruisePrice: 1280, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1230, totalPrice: 2460 });
     expect(input.options!.every((o) => o.cruisePrice + o.flightPrice + (o.mandatoryFees ?? 0) === o.totalPrice)).toBe(true);
   });
 

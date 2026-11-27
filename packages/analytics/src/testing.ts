@@ -8,14 +8,14 @@ export const at = (day: number) => new Date(BASE + day * DAY).toISOString();
 /** A cabin at `perPerson` cruise price and `flightPerPerson` flight price for 2 adults (all derived prices included). */
 export function cabin(category: string, perPerson: number, flightPerPerson = 100) {
   const p = makePricing({ passengers: 2, cruisePerPerson: perPerson, flightPerPerson });
-  return { category, packagePerPerson: perPerson, flightPerPerson, packageTotal: p.cruiseTotal, flightTotal: p.flightTotal, mandatoryFees: 0, tripPerPerson: p.tripPerPerson, tripTotal: p.tripTotal };
+  return { category, subcategory: null as string | null, packagePerPerson: perPerson, flightPerPerson, packageTotal: p.cruiseTotal, flightTotal: p.flightTotal, mandatoryFees: 0, tripPerPerson: p.tripPerPerson, tripTotal: p.tripTotal };
 }
 
-/** A v4 snapshot on `day`; the headline is the cabin with the lowest trip total. Pass `departure` for booking-window tests. */
+/** A v5 snapshot on `day`; the headline is the cabin with the lowest trip total. Pass `departure` for booking-window tests. */
 export function snapshot(day: number, cabins: ReturnType<typeof cabin>[], departure: string | null = null): CruiseSnapshot {
   const cheapest = cabins.length ? cabins.reduce((a, b) => (b.tripTotal < a.tripTotal ? b : a)) : { packageTotal: 0, flightTotal: 0 };
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     id: `s${day}`,
     routeId: 'r1',
     provider: 'aida',
@@ -77,7 +77,7 @@ export const fare = (code: string, over: Partial<FareOption> = {}): FareOption =
 export const opt = (cabinCategory: string, fareCode: string, cruise: number, flight = 1180): PricingOption =>
   pricingOption({ cabinCategory, fareCode, flightCode: 'FRA', passengers: 2, cruisePrice: cruise, flightPrice: flight });
 
-/** A v4 snapshot carrying fares and options (cabins derived from the cheapest option per cabin). */
+/** A v5 snapshot carrying fares and options (cabins derived from the cheapest option per cabin). */
 export function fareSnapshot(day: number, fares: FareOption[], options: PricingOption[], departure: string | null = null): CruiseSnapshot {
   const cheapest = new Map<string, PricingOption>();
   for (const o of options) if (!cheapest.has(o.cabinCategory) || o.cruisePrice < cheapest.get(o.cabinCategory)!.cruisePrice) cheapest.set(o.cabinCategory, o);

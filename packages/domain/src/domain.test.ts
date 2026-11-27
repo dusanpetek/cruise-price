@@ -57,10 +57,11 @@ const v4 = {
   options: [],
   warnings: [],
 };
+const v5 = { ...v4, schemaVersion: 5, cabins: v4.cabins.map((c) => ({ ...c, subcategory: null })) };
 
 describe('snapshot schema', () => {
-  it('accepts a valid v4 snapshot', () => {
-    expect(CruiseSnapshotSchema.parse(v4)).toEqual(v4);
+  it('accepts a valid v5 snapshot', () => {
+    expect(CruiseSnapshotSchema.parse(v5)).toEqual(v5);
   });
 
   it.each([
@@ -93,7 +94,7 @@ describe('snapshot schema', () => {
       options: [{ cabinCategory: 'Inside', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePrice: 1298, flightPrice: 1180, totalPrice: 2478 }],
     });
     expect(input.cabins[0]).toMatchObject({ mandatoryFees: 0, tripPerPerson: 1239, tripTotal: 2478 });
-    expect(input.options[0]).toMatchObject({ cruisePerPerson: 649, flightPerPerson: 590, mandatoryFees: 0, tripPerPerson: 1239, totalPrice: 2478 });
+    expect(input.options[0]).toMatchObject({ cruisePerPerson: 649, flightPerPerson: 590, mandatoryFees: 0, tripPerPerson: 1239, totalPrice: 2478, subcategory: null });
   });
 });
 
@@ -115,16 +116,16 @@ describe('pricing block', () => {
 describe('snapshot versioning', () => {
   const v1 = { id: 'old', routeId: 'r1', collectedAt: '2026-01-01T00:00:00.000Z', source: 'mock', currency: 'EUR', packagePrice: 1200, flightSurcharge: 250 };
 
-  it('upgrades a v1 (MVP) snapshot all the way to v4, with the fare unknown', () => {
+  it('upgrades a v1 (MVP) snapshot all the way to v5, with the fare unknown', () => {
     const up = parseSnapshot(v1);
-    expect(up).toMatchObject({ schemaVersion: 4, provider: null, cabins: [], packagePrice: 1200, flightSurcharge: 250, fares: [], options: [], warnings: [] });
+    expect(up).toMatchObject({ schemaVersion: 5, provider: null, cabins: [], packagePrice: 1200, flightSurcharge: 250, fares: [], options: [], warnings: [] });
     expect(up.pricing).toEqual({ cruisePerPerson: 600, cruiseTotal: 1200, flightPerPerson: 125, flightTotal: 250, mandatoryFees: 0, tripPerPerson: 725, tripTotal: 1450 });
   });
 
   it('upgrades a v2 snapshot: no fares and no options, nothing invented, trip prices derived', () => {
     const { fares: _f, options: _o, warnings: _w, pricing: _p, ...rest } = v4;
     const v2 = { ...rest, schemaVersion: 2, cabins: v4.cabins.map(({ mandatoryFees: _m, tripPerPerson: _tp, tripTotal: _tt, ...c }) => c) };
-    expect(parseSnapshot(v2)).toEqual(v4);
+    expect(parseSnapshot(v2)).toEqual(v5);
   });
 
   it('upgrades a v3 snapshot: per-person and trip prices are derived from the stored totals', () => {
@@ -137,9 +138,26 @@ describe('snapshot versioning', () => {
       options: [{ cabinCategory: 'Inside', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePrice: 1298, flightPrice: 1180, totalPrice: 2478 }],
     };
     const up = parseSnapshot(v3);
-    expect(up.options[0]).toEqual({ cabinCategory: 'Inside', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePerPerson: 649, cruisePrice: 1298, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1239, totalPrice: 2478 });
+    expect(up.options[0]).toEqual({ cabinCategory: 'Inside', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePerPerson: 649, cruisePrice: 1298, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1239, totalPrice: 2478, subcategory: null });
     expect(up.cabins[0]).toMatchObject({ tripPerPerson: 1239, tripTotal: 2478 });
     expect(up.pricing).toEqual(pricing);
+  });
+
+  it('upgrades a v4 snapshot: every cabin and option gets subcategory null, prices unchanged', () => {
+    const option = { cabinCategory: 'Inside', fareCode: 'CLASSIC', flightCode: 'FRA', cruisePerPerson: 649, cruisePrice: 1298, flightPerPerson: 590, flightPrice: 1180, mandatoryFees: 0, tripPerPerson: 1239, totalPrice: 2478 };
+    const up = parseSnapshot({ ...v4, options: [option] });
+    expect(up.schemaVersion).toBe(5);
+    expect(up.cabins[0]?.subcategory).toBeNull();
+    expect(up.options[0]?.subcategory).toBeNull();
+    expect(up.cabins[0]).toMatchObject(v4.cabins[0]!);
+    expect(up.options[0]).toMatchObject(option);
+    expect(up.pricing).toEqual(pricing);
+  });
+
+  it('defaults subcategory to null in snapshot input', () => {
+    const { subcategory: _s, ...cabin } = v5.cabins[0]!;
+    const out = SnapshotInputSchema.parse({ routeId: 'r1', source: 'manual', packagePrice: 1298, cabins: [cabin] });
+    expect(out.cabins[0]?.subcategory).toBeNull();
   });
 
   it('assumes 2 passengers when an old document has no party', () => {
@@ -149,13 +167,13 @@ describe('snapshot versioning', () => {
   });
 
   it('leaves current documents and non-objects untouched', () => {
-    expect(migrateSnapshot(v4)).toBe(v4);
+    expect(migrateSnapshot(v5)).toBe(v5);
     expect(migrateSnapshot('x')).toBe('x');
     expect(migrateSnapshot(null)).toBeNull();
   });
 
   it('rejects an unknown future version', () => {
-    expect(() => parseSnapshot({ ...v4, schemaVersion: 5 })).toThrow();
+    expect(() => parseSnapshot({ ...v5, schemaVersion: 6 })).toThrow();
   });
 });
 

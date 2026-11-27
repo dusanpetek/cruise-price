@@ -33,6 +33,8 @@ export type FareOption = z.infer<typeof FareOptionSchema>;
  */
 const pricingOptionShape = z.object({
   cabinCategory: z.string().min(1),
+  /** Sub-category within the cabin category; null when the provider does not distinguish one. */
+  subcategory: z.string().min(1).nullable().default(null),
   fareCode: z.string().min(1),
   /** Departure airport the flight price is for; null = no flight. */
   flightCode: z.string().nullable(),

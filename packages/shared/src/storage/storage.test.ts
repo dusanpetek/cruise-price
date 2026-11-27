@@ -116,7 +116,7 @@ describe('snapshotStore', () => {
 
   it('stores v4 snapshots with a checksum and the full pricing block', async () => {
     const s = await createSnapshotStore(dir).create(input);
-    expect(s).toMatchObject({ schemaVersion: 4, provider: null, cabins: [], fares: [], options: [], pricing: { cruiseTotal: 1000, flightTotal: 200, tripTotal: 1200, tripPerPerson: 600 } });
+    expect(s).toMatchObject({ schemaVersion: 5, provider: null, cabins: [], fares: [], options: [], pricing: { cruiseTotal: 1000, flightTotal: 200, tripTotal: 1200, tripPerPerson: 600 } });
     expect(s.checksum).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -175,7 +175,7 @@ describe('snapshotStore', () => {
       await createSnapshotStore(dir).create(input); // creates the folder
       await writeFile(join(folder, 'legacy.json'), JSON.stringify(v1));
       const legacy = (await createSnapshotStore(dir).listByRoute('r1')).find((s) => s.id === 'legacy')!;
-      expect(legacy).toMatchObject({ schemaVersion: 4, packagePrice: 1234, cabins: [], fares: [], options: [], pricing: { cruiseTotal: 1234, flightTotal: 250, tripTotal: 1484 } });
+      expect(legacy).toMatchObject({ schemaVersion: 5, packagePrice: 1234, cabins: [], fares: [], options: [], pricing: { cruiseTotal: 1234, flightTotal: 250, tripTotal: 1484 } });
       expect(JSON.parse(await readFile(join(folder, 'legacy.json'), 'utf8')).schemaVersion).toBeUndefined(); // file untouched
     });
   });

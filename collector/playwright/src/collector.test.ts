@@ -165,7 +165,7 @@ describe('collection runner', () => {
 
     expect(diagnostics.status).toBe('success');
     expect(diagnostics.steps.map((s) => s.name)).toEqual(['resolve-provider', 'aida:mock-price', 'collect', 'store-snapshot']);
-    expect(snapshot).toMatchObject({ routeId: route.id, source: 'mock', provider: 'aida', schemaVersion: 4, party: { adults: 2, departureAirport: 'FRA' } });
+    expect(snapshot).toMatchObject({ routeId: route.id, source: 'mock', provider: 'aida', schemaVersion: 5, party: { adults: 2, departureAirport: 'FRA' } });
     expect(snapshot!.cabins.length).toBeGreaterThan(1);
     expect(snapshot!.packagePrice).toBe(Math.min(...snapshot!.cabins.map((c) => c.packageTotal)));
     // every cabin x fare, always as cruise + flight = total
@@ -438,7 +438,7 @@ describe('seed', () => {
     const [first] = await stores.routes.list();
     const history = await stores.snapshots.listByRoute(first!.id);
     expect(history).toHaveLength(11);
-    expect(history[0]).toMatchObject({ source: 'mock', schemaVersion: 4 });
+    expect(history[0]).toMatchObject({ source: 'mock', schemaVersion: 5 });
     expect(history[0]!.cabins.length).toBeGreaterThan(1);
     expect(history[0]!.options.length).toBeGreaterThan(3);
     expect(new Set(history.map((h) => h.fares.map((f) => f.fareCode).join()))).toHaveProperty('size', 1);
