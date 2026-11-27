@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import type { ItineraryStop } from '@cruise/domain';
+import { mergeSplitStays } from '../parsers/aida';
 import type { RouteSearchResult } from './types';
 
 const BASE = 'https://aida.de';
@@ -38,50 +39,38 @@ const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s/(-])(\p{L})/gu,
 const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
 const stopTime = (t: string | null | undefined) => (t && LOCAL_DATE_TIME.test(t) ? t : null);
 
-const DAY_MS = 86_400_000;
-const utcDay = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10));
-const formatUtcDay = (ms: number) => {
-  const d = new Date(ms);
-  return `${String(d.getUTCFullYear()).padStart(4, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-};
-
 /**
  * The itinerary of one AIDA item: its `ports` in order, sea days (code SEE or no name) included. Times are passed through as given.
- *
- * The ports in the response belong to the item's FIRST sailing, while the item lists many variants (same route on other dates).
- * With `sailingStart` (YYYY-MM-DD) every time is moved by the whole days between the first departure of the ports and that date,
- * the time of day is kept. This is an approximation (same route group, same day pattern). When the shift cannot be worked out
- * (no departure in the ports, malformed `sailingStart`) all times are null: wrong dates are worse than none.
+ * The ports belong to the item's FIRST sailing only (see `aidaResults`); a stay split in two entries becomes one stop.
  */
-export function aidaStops(ports: AidaItem['ports'], sailingStart?: string | null): ItineraryStop[] {
-  const stops = (ports ?? []).map((p) => {
-    const seaDay = p.code === 'SEE' || (!p.code && !p.name);
-    return {
-      code: seaDay ? null : p.code || null,
-      name: seaDay || !p.name ? null : titleCase(p.name),
-      seaDay,
-      arrival: stopTime(p.arrivalDateTime),
-      departure: stopTime(p.departureDateTime),
-      lat: null,
-      lng: null,
-    };
-  });
-  if (sailingStart === undefined) return stops;
-  const anchor = stops.find((s) => s.departure !== null)?.departure;
-  if (!anchor || !sailingStart || !/^\d{4}-\d{2}-\d{2}$/.test(sailingStart)) return stops.map((s) => ({ ...s, arrival: null, departure: null }));
-  const days = Math.round((utcDay(sailingStart) - utcDay(anchor.slice(0, 10))) / DAY_MS);
-  const shift = (t: string | null) => (t === null ? null : `${formatUtcDay(utcDay(t.slice(0, 10)) + days * DAY_MS)}${t.slice(10)}`);
-  return stops.map((s) => ({ ...s, arrival: shift(s.arrival), departure: shift(s.departure) }));
+export function aidaStops(ports: AidaItem['ports']): ItineraryStop[] {
+  return mergeSplitStays(
+    (ports ?? []).map((p) => {
+      const seaDay = p.code === 'SEE' || (!p.code && !p.name);
+      return {
+        code: seaDay ? null : p.code || null,
+        name: seaDay || !p.name ? null : titleCase(p.name),
+        seaDay,
+        arrival: stopTime(p.arrivalDateTime),
+        departure: stopTime(p.departureDateTime),
+        lat: null,
+        lng: null,
+      };
+    }),
+  );
 }
 
 /**
  * AIDA groups the sailings of one route into one item: its variants are the same route on other dates and ships. Every variant
- * becomes one result. Duplicate journeys are dropped.
+ * becomes one result. Duplicate journeys are dropped. The item's `ports` are exact only for its first variant (the one that starts
+ * on the day of the first departure), so only that result carries an `itinerary`; other sailings do not share the pattern.
  */
 export function aidaResults(items: readonly AidaItem[]): RouteSearchResult[] {
   const seen = new Set<string>();
   const out: RouteSearchResult[] = [];
   for (const item of items) {
+    const stops = aidaStops(item.ports);
+    const firstDeparture = stops.find((x) => x.departure !== null)?.departure?.slice(0, 10);
     const ports = [...new Set((item.ports ?? []).map((p) => p.name).filter((n): n is string => !!n).map(titleCase))];
     for (const v of item.cruiseItemVariant ?? []) {
       if (!v.journeyIdentifier || seen.has(v.journeyIdentifier)) continue;
@@ -97,8 +86,7 @@ export function aidaResults(items: readonly AidaItem[]): RouteSearchResult[] {
         pricePerPerson: typeof v.amountPerPerson === 'number' ? v.amountPerPerson : null,
         flightIncluded: !!v.flightIncluded,
         ports,
-        // each variant gets the stops shifted to its own start date (see aidaStops: an approximation)
-        itinerary: aidaStops(item.ports, v.startDate ?? null),
+        ...(firstDeparture && v.startDate === firstDeparture ? { itinerary: stops } : {}),
         imageUrl: v.imageUrl ?? null,
       });
     }
@@ -120,16 +108,6 @@ export async function fetchAidaItems(page: Page): Promise<{ items: AidaItem[]; c
     }
   }
   throw lastError;
-}
-
-/** The stops of one sailing, from AIDA's search (the `ports` are the item's first sailing, so the matched variant's start date moves them). */
-export async function findAidaItinerary(page: Page, journeyId: string): Promise<ItineraryStop[] | null> {
-  const { items } = await fetchAidaItems(page);
-  for (const item of items) {
-    const variant = item.cruiseItemVariant?.find((v) => v.journeyIdentifier === journeyId);
-    if (variant) return aidaStops(item.ports, variant.startDate ?? null);
-  }
-  return null;
 }
 
 async function fetchAidaItemsOnce(page: Page): Promise<{ items: AidaItem[]; capped: boolean }> {

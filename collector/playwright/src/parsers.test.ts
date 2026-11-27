@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parseAidaCruiseDetail } from './parsers/aida';
+import { parseAidaCruiseDetail, parseAidaDetailItinerary } from './parsers/aida';
 import { parseMeinSchiffItinerary } from './parsers/meinSchiffItinerary';
 import { parseCabins, parseDateRange, parseGuests, parseMeinSchiffCruiseInfo, parseTotal } from './parsers/meinSchiff';
 import { nightsBetween, normalizeText, parseEuro, parseGermanDate } from './parsers/text';
@@ -246,5 +246,70 @@ describe('locate', () => {
     const b = scope();
     locate(b.scope, { role: 'option' });
     expect(b.calls).toEqual([['getByRole', 'option', {}]]);
+  });
+});
+
+describe('parseAidaDetailItinerary', () => {
+  const detail = JSON.parse(readFileSync(new URL('./__fixtures__/aidaDetailItinerary.json', import.meta.url), 'utf8')) as { itinerary: Record<string, unknown>[] };
+  const stop = (code: string, name: string, arrival: string | null, departure: string | null) => ({ code, name, seaDay: false, arrival, departure, lat: null, lng: null });
+  const sea = { code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null };
+  const entry = (over: Record<string, unknown>) => ({ code: 'RELPT', name: 'Le Port', arrivalDateTime: '', departureDateTime: '', ...over });
+  const parse = (...itinerary: Record<string, unknown>[]) => parseAidaDetailItinerary({ itinerary })!;
+
+  it('reads the exact stops of the sailing (real BL14280202 response), split stays merged', () => {
+    expect(parseAidaDetailItinerary(detail)).toEqual([
+      stop('MUPLU', 'Mauritius', null, '2028-02-02T21:00:00'),
+      stop('RELPT', 'Le Port', '2028-02-03T09:00:00', '2028-02-03T18:00:00'),
+      sea,
+      sea,
+      stop('SCPRI', 'Praslin', '2028-02-06T09:00:00', '2028-02-06T19:00:00'),
+      stop('SCLDI', 'La Digue', '2028-02-07T07:30:00', '2028-02-07T18:30:00'),
+      stop('SCPOV', 'Seychellen', '2028-02-08T02:00:00', '2028-02-09T19:00:00'),
+      sea,
+      stop('MGDIE', 'Antsiranana', '2028-02-11T09:00:00', '2028-02-11T19:00:00'),
+      stop('MGNOS', 'Nosy Be', '2028-02-12T08:00:00', '2028-02-12T19:00:00'),
+      sea,
+      sea,
+      stop('MUPLU', 'Mauritius', '2028-02-15T04:00:00', null),
+      stop('MUPLU', 'Mauritius', '2028-02-16T00:00:00', null),
+    ]);
+  });
+
+  it('returns null without an itinerary', () => {
+    expect(parseAidaDetailItinerary({ itinerary: [] })).toBeNull();
+    expect(parseAidaDetailItinerary({ title: 'x' })).toBeNull();
+    expect(parseAidaDetailItinerary({ itinerary: 'nope' })).toBeNull();
+    expect(parseAidaDetailItinerary(null)).toBeNull();
+    expect(parseAidaDetailItinerary(undefined)).toBeNull();
+  });
+
+  it('turns invalid or empty date strings into null times', () => {
+    const [a] = parse(entry({ arrivalDateTime: 'soon', departureDateTime: '31.02.2028, 09:00' }));
+    expect(a).toMatchObject({ arrival: null, departure: null });
+    const [b] = parse(entry({ arrivalDateTime: '3.2.2028, 9:00', departureDateTime: '03.02.2028, 25:00' }));
+    expect(b).toMatchObject({ arrival: null, departure: null });
+    const [c] = parse(entry({ arrivalDateTime: '03.02.2028', departureDateTime: null }));
+    expect(c).toMatchObject({ arrival: null, departure: null });
+  });
+
+  it('keeps a code only when it has five capital letters; trims names, empty name is null', () => {
+    const stops = parse(entry({ code: 'rel', name: ' Le Port ' }), entry({ code: 'TOOLONG', name: '' }), entry({ code: null, name: '  ' }), entry({ code: 'ABCDE' }));
+    expect(stops.map((s) => [s.code, s.name])).toEqual([[null, 'Le Port'], [null, null], [null, null], ['ABCDE', 'Le Port']]);
+    expect(stops.every((s) => !s.seaDay)).toBe(true);
+  });
+
+  it('merges only the exact split-stay pattern', () => {
+    const arr = { arrivalDateTime: '08.02.2028, 02:00' };
+    const dep = { departureDateTime: '09.02.2028, 19:00' };
+    const merged = (...e: Record<string, unknown>[]) => parse(...e).length;
+    expect(merged(entry(arr), entry(dep))).toBe(1);
+    expect(merged(entry(arr), entry({ ...dep, code: 'SCPRI' }))).toBe(2); // other code
+    expect(merged(entry(dep), entry(arr))).toBe(2); // wrong order
+    expect(merged(entry(arr), entry(arr))).toBe(2); // two arrivals
+    expect(merged(entry(dep), entry(dep))).toBe(2);
+    expect(merged(entry({ ...arr, ...dep }), entry(dep))).toBe(2); // first already has a departure
+    expect(merged(entry(arr), entry({ ...arr, ...dep }))).toBe(2); // second has an arrival
+    expect(merged(entry({ ...arr, code: 'x' }), entry({ ...dep, code: 'x' }))).toBe(2); // no code
+    expect(merged(entry(arr), { code: 'SEE', name: 'SEETAG' }, entry(dep))).toBe(3); // not consecutive
   });
 });
