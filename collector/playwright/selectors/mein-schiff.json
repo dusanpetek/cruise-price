@@ -11,6 +11,14 @@
     "css": "h2",
     "text": "^Mein Schiff (?!®)\\S+"
   },
+  "itineraryOpen": {
+    "role": "button",
+    "name": "^Reiseverlauf$"
+  },
+  "itineraryDialog": {
+    "css": "[role=\"dialog\"]",
+    "text": "^Reiseverlauf"
+  },
   "customizeOpen": {
     "role": "button",
     "name": "Reise anpassen"

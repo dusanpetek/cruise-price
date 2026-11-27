@@ -335,22 +335,25 @@ const NAME_ALIASES: Record<string, string> = {
   'puerto del rosario': 'ESFUE',
   arrecife: 'ESACE',
   funchal: 'PTFNC',
+  // Mein Schiff prints the island in brackets; with it the name is unambiguous (matched before the bracket is dropped).
+  'santa cruz (la palma)': 'ESSPC',
+  'santa cruz (teneriffa)': 'ESSCT',
 };
+
+/** Lowercase, diacritics folded, whitespace collapsed. */
+function foldName(name: string): string {
+  return name.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
 
 /** Lowercase, diacritics folded, anything after "/" or "(" dropped. */
 function normalizeName(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[/(].*$/, '')
-    .trim();
+  return foldName(name).replace(/[/(].*$/, '').trim();
 }
 
 /** Coordinates of a stop: by UN/LOCODE first, then by normalized name. Null when the port is unknown. */
 export function portCoordinate(stop: Pick<ItineraryStop, 'code' | 'name'>): Coordinate | null {
   const byCode = stop.code ? PORT_COORDINATES[stop.code] : undefined;
   if (byCode) return byCode;
-  const alias = stop.name ? NAME_ALIASES[normalizeName(stop.name)] : undefined;
+  const alias = stop.name ? (NAME_ALIASES[foldName(stop.name)] ?? NAME_ALIASES[normalizeName(stop.name)]) : undefined;
   return (alias ? PORT_COORDINATES[alias] : undefined) ?? null;
 }

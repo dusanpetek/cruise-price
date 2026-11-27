@@ -67,6 +67,9 @@ export const MeinSchiffSelectorsSchema = z.object({
   cookieAccept: LocatorSpecSchema,
   title: LocatorSpecSchema,
   ship: LocatorSpecSchema,
+  /** The "Reiseverlauf" button under the title; it opens a dialog listing ports and times. */
+  itineraryOpen: LocatorSpecSchema,
+  itineraryDialog: LocatorSpecSchema,
   customizeOpen: LocatorSpecSchema,
   dialog: LocatorSpecSchema,
   /** CSS of the dialog\'s loading overlay; the page is busy while it still captures pointer events. */

@@ -1,0 +1,53 @@
+Reiseverlauf
+Anreise
+So., 14. März 2027
+Las Palmas (Gran Canaria)
+Ankunft
+04:30
+Abfahrt
+22:00
+Tag 1
+Mo., 15. März 2027
+Seetag
+Las Palmas (Gran Canaria)
+Funchal (Madeira)
+Tag 2
+Di., 16. März 2027
+Funchal (Madeira)
+Ankunft
+07:00
+Abfahrt
+22:00
+Tag 3
+Mi., 17. März 2027
+Seetag
+Funchal (Madeira)
+Santa Cruz (La Palma)
+Tag 4
+Do., 18. März 2027
+Santa Cruz (La Palma)
+Ankunft
+08:00
+Abfahrt
+18:00
+Tag 5
+Fr., 19. März 2027
+Santa Cruz (Teneriffa)
+Ankunft
+04:30
+Abfahrt
+22:30
+Tag 6
+Sa., 20. März 2027
+Arrecife (Lanzarote)
+Ankunft
+09:00
+Abfahrt
+19:00
+Tag 7
+So., 21. März 2027
+Las Palmas (Gran Canaria)
+Ankunft
+04:30
+Abfahrt
+22:00

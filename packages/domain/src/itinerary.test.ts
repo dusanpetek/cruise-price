@@ -62,3 +62,21 @@ describe('ItineraryStopSchema', () => {
     expect(ItineraryStopSchema.safeParse(stop({ arrival: '2026-11-29' })).success).toBe(false);
   });
 });
+
+describe('Mein Schiff names with an island qualifier', () => {
+  it('Santa Cruz (La Palma) and (Teneriffa) resolve to their own ports, plain Santa Cruz stays unknown', () => {
+    expect(portCoordinate({ code: null, name: 'Santa Cruz (La Palma)' })).toEqual(portCoordinate({ code: 'ESSPC', name: null }));
+    expect(portCoordinate({ code: null, name: 'Santa Cruz (Teneriffa)' })).toEqual(portCoordinate({ code: 'ESSCT', name: null }));
+    expect(portCoordinate({ code: null, name: 'Santa Cruz (Teneriffa)' })).not.toBeNull();
+    expect(portCoordinate({ code: null, name: 'Santa Cruz' })).toBeNull();
+  });
+
+  it.each([
+    ['Las Palmas (Gran Canaria)', 'ESLPA'],
+    ['Funchal (Madeira)', 'PTFNC'],
+    ['Arrecife (Lanzarote)', 'ESACE'],
+  ])('%s resolves like %s', (name, code) => {
+    expect(portCoordinate({ code: null, name })).toEqual(portCoordinate({ code, name: null }));
+    expect(portCoordinate({ code: null, name })).not.toBeNull();
+  });
+});

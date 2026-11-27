@@ -24,3 +24,9 @@ All knowledge about the provider sites lives in `collector/playwright/selectors/
 
 - **AIDA** may start challenging automated visits (HTTP 403 / "Kurz vom Kurs abgekommen" page). That is reported as a normal failure with a screenshot. Nothing in this project tries to evade it.
 - **Mein Schiff** `busyOverlay` is a utility-class selector for the dialog's loading overlay; it is the most likely thing to break.
+
+## Mein Schiff itinerary
+
+Checked live on 2026-11-27 (7-night Canary Islands trip, `MSA272223SEE`). The itinerary is **not** lazy-loaded and has no XHR of its own: the "Reiseverlauf" button under the trip title (`itineraryOpen`) opens a dialog (`itineraryDialog`, `[role="dialog"]` whose text starts with "Reiseverlauf") with the full text. Per day it shows a heading ("Anreise" / "Tag N"), the date with year ("So., 14. März 2027"), then the port name with "Ankunft" / "Abfahrt" and `HH:mm` on separate lines, or "Seetag". Under "Seetag" it also lists the previous and next port; the parser skips those. Ports have no codes; times are local port times. `src/__fixtures__/meinSchiffItinerary.txt` shows the shape and `parseMeinSchiffItinerary` (`src/parsers/meinSchiffItinerary.ts`) holds the line patterns ("Anreise|Tag N", "Seetag", "Ankunft", "Abfahrt", German month names). `readItinerary` first closes the "Reise anpassen" dialog the price run leaves open (it hides the rest of the page), clicks the button and reads the dialog; a missing button, dialog or port list stores nothing (the previous itinerary stays).
+
+Port names include the island in brackets ("Santa Cruz (La Palma)"); map coordinates come from the name aliases in `packages/domain/src/models/portCoordinates.ts`, which need an entry for each new port name.
