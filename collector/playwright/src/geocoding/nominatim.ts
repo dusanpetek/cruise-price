@@ -6,7 +6,10 @@ const DEFAULT_MIN_INTERVAL_MS = 1100;
 const AMBIGUITY_RADIUS_KM = 100;
 
 type Position = { lat: number; lng: number };
-type NominatimResult = Position & { category: string };
+type NominatimResult = Position & { category: string; displayName: string };
+
+/** Lowercase, diacritics removed, for comparing a name with what the geocoder answers. */
+export const fold = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export type Geocoder = {
   geocode(q: { name: string; country: string | null }): Promise<Position | null>;
@@ -49,8 +52,8 @@ export function createNominatimGeocoder(opts: NominatimOptions = {}): Geocoder {
     const url = `${ENDPOINT}?${new URLSearchParams({ ...params, format: 'jsonv2', limit: '3' })}`;
     const res = await doFetch(url, { headers: { 'User-Agent': userAgent, Accept: 'application/json' } });
     if (!res.ok) throw new Error(`Nominatim answered HTTP ${res.status}`);
-    const body = (await res.json()) as { lat: string; lon: string; category?: string }[];
-    return body.map((r) => ({ lat: Number(r.lat), lng: Number(r.lon), category: r.category ?? '' }));
+    const body = (await res.json()) as { lat: string; lon: string; category?: string; display_name?: string }[];
+    return body.map((r) => ({ lat: Number(r.lat), lng: Number(r.lon), category: r.category ?? '', displayName: r.display_name ?? '' }));
   }
 
   async function lookup({ name, country }: { name: string; country: string | null }): Promise<Position | null> {
@@ -63,6 +66,14 @@ export function createNominatimGeocoder(opts: NominatimOptions = {}): Geocoder {
     const results = await search({ q: name.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() });
     const first = results[0];
     if (!first || results.some((r) => distanceKm(first, r) > AMBIGUITY_RADIUS_KM)) return null;
+    // "Santa Cruz (La Palma)": the free-text search may find another place altogether (a village "La Palma" in Peru), so the first
+    // result must be named like the port (its first address part) and carry the qualifier somewhere in its address
+    const qualifier = /\(([^)]+)\)/.exec(name)?.[1]?.trim();
+    if (qualifier) {
+      const base = fold(name.replace(/\([^)]*\)/g, '')).trim();
+      const address = fold(first.displayName);
+      if (!address.split(',')[0]!.includes(base) || !address.includes(fold(qualifier))) return null;
+    }
     return { lat: first.lat, lng: first.lng };
   }
 

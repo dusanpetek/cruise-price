@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ItineraryStop } from '@cruise/domain';
 import { createGeocodeStore, type GeocodeStore } from '@cruise/shared/storage';
 import { createNominatimGeocoder } from './geocoding/nominatim';
-import { resolveStopPositions } from './geocoding/resolvePositions';
+import { readOnlyStore, resolveStopPositions } from './geocoding/resolvePositions';
 
-type Hit = { lat: string; lon: string; category?: string; type?: string };
-const hit = (lat: number, lon: number, category = 'place', type = 'city'): Hit => ({ lat: String(lat), lon: String(lon), category, type });
+type Hit = { lat: string; lon: string; category?: string; type?: string; display_name?: string };
+const hit = (lat: number, lon: number, category = 'place', type = 'city', display_name = ''): Hit => ({ lat: String(lat), lon: String(lon), category, type, display_name });
 
 /** A fake Nominatim: answers every request from `answer`, records the URLs and headers. */
 function fakeFetch(answer: (url: URL) => Hit[] | number) {
@@ -78,7 +78,7 @@ describe('createNominatimGeocoder', () => {
   });
 
   it('Mein Schiff: accepts results that all lie within 100 km, without a country filter', async () => {
-    const { fetchFn, calls } = fakeFetch(() => [hit(28.68, -17.76), hit(28.7, -17.8)]);
+    const { fetchFn, calls } = fakeFetch(() => [hit(28.68, -17.76, 'place', 'city', 'Santa Cruz de La Palma, La Palma, Spain'), hit(28.7, -17.8, 'place', 'village', 'Santa Cruz, La Palma, Spain')]);
     expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: null })).toEqual({ lat: 28.68, lng: -17.76 });
     expect(calls[0]!.url.searchParams.get('q')).toBe('Santa Cruz La Palma');
     expect(calls[0]!.url.searchParams.has('countrycodes')).toBe(false);
@@ -88,6 +88,39 @@ describe('createNominatimGeocoder', () => {
   it('Mein Schiff: a name with places far apart (Santa Cruz) is ambiguous and answers null', async () => {
     const { fetchFn } = fakeFetch(() => [hit(28.47, -16.25), hit(37.39, -5.99), hit(43.19, -5.77)]);
     expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz', country: null })).toBeNull();
+  });
+
+  it('Mein Schiff: a qualifier name whose first result lacks the qualifier (Santa Cruz in Peru) answers null although the results agree', async () => {
+    const { fetchFn } = fakeFetch(() => [
+      hit(-6.75, -78.92, 'boundary', 'administrative', 'Santa Cruz, Cajamarca, Peru'),
+      hit(-6.62, -78.95, 'place', 'village', 'Santa Cruz, Provincia de Santa Cruz, Cajamarca, Peru'),
+    ]);
+    expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: null })).toBeNull();
+  });
+
+  it('Mein Schiff: a result that only names the qualifier in its address (village "La Palma" in Peru) is rejected, as seen live', async () => {
+    const { fetchFn } = fakeFetch(() => [
+      hit(-6.7536, -78.9169, 'place', 'village', 'La Palma, Pulán, Santa Cruz, Cajamarca, Perú'),
+      hit(-6.6714, -78.8391, 'place', 'village', 'La Palma, Yauyucan, Santa Cruz, Cajamarca, Perú'),
+    ]);
+    expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: null })).toBeNull();
+  });
+
+  it('Mein Schiff: accepts a qualifier name when the first result contains the folded qualifier', async () => {
+    const { fetchFn } = fakeFetch(() => [hit(32.65, -16.91, 'place', 'city', 'Funchal, Madeira, Portugal')]);
+    expect(await geocoderWith(fetchFn).geocode({ name: 'Funchal (Madeira)', country: null })).toEqual({ lat: 32.65, lng: -16.91 });
+    const accents = fakeFetch(() => [hit(1, 1, 'place', 'city', 'Málaga, Andalucía, España')]);
+    expect(await geocoderWith(accents.fetchFn).geocode({ name: 'Malaga (ANDALUCIA)', country: null })).toEqual({ lat: 1, lng: 1 });
+  });
+
+  it('Mein Schiff: only the first result counts for the qualifier', async () => {
+    const { fetchFn } = fakeFetch(() => [hit(-6.75, -78.92, 'place', 'city', 'Santa Cruz, Cajamarca, Peru'), hit(-6.7, -78.9, 'place', 'village', 'Santa Cruz, La Palma, Peru')]);
+    expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: null })).toBeNull();
+  });
+
+  it('AIDA: a qualifier in the name does not matter, the country filter rules', async () => {
+    const { fetchFn } = fakeFetch(() => [hit(1, 1, 'place', 'city', 'Somewhere')]);
+    expect(await geocoderWith(fetchFn).geocode({ name: 'Santa Cruz (La Palma)', country: 'es' })).toEqual({ lat: 1, lng: 1 });
   });
 
   it('waits at least minIntervalMs between two requests, not before the first', async () => {
@@ -206,6 +239,22 @@ describe('resolveStopPositions', () => {
     });
     await resolve(['A', 'B', 'C', 'D'].map((n) => stop({ code: 'SCXXX', name: n })), geocoder);
     expect(geocoder.geocode).toHaveBeenCalledTimes(4);
+  });
+
+  it('caches a rejected qualifier answer as a miss', async () => {
+    const { fetchFn } = fakeFetch(() => [hit(-6.75, -78.92, 'place', 'city', 'Santa Cruz, Cajamarca, Peru')]);
+    const geocoder = geocoderWith(fetchFn);
+    const out = await resolveStopPositions([stop({ name: 'Santa Cruz (Laguna)' })], { geocoder, store, now: () => NOW, log: () => {} });
+    expect(out[0]).toMatchObject({ lat: null, lng: null });
+    expect(await store.get('-|santa cruz (laguna)')).toEqual({ miss: true, at: NOW.toISOString() });
+  });
+
+  it('a read-only store (dry run) still serves hits but writes nothing', async () => {
+    await store.put('sc|cached', { lat: 7, lng: 8, source: 'osm', at: NOW.toISOString() });
+    const geocoder = geocoderOf(async () => ({ lat: 1, lng: 2 }));
+    const out = await resolveStopPositions([stop({ code: 'SCXYZ', name: 'Cached' }), stop({ code: 'SCXYZ', name: 'New' })], { geocoder, store: readOnlyStore(store), now: () => NOW, log: () => {} });
+    expect(out.map((s) => s.lat)).toEqual([7, 1]);
+    expect(await store.get('sc|new')).toBeNull();
   });
 
   it('keeps the order and never mutates its input', async () => {

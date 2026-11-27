@@ -1,6 +1,6 @@
 import { portCoordinate, type ItineraryStop } from '@cruise/domain';
 import type { GeocodeStore } from '@cruise/shared/storage';
-import type { Geocoder } from './nominatim';
+import { fold, type Geocoder } from './nominatim';
 
 /** A "nothing found" answer is asked again after this long. A found position never expires. */
 const MISS_RETRY_MS = 30 * 86_400_000;
@@ -19,13 +19,12 @@ function countryOf(code: string | null): string | null {
   return code && /^[A-Z]{5}$/.test(code) ? code.slice(0, 2).toLowerCase() : null;
 }
 
-const normalize = (name: string) =>
-  name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+const normalize = (name: string) => fold(name).replace(/\s+/g, ' ').trim();
+
+/** The same cache for reading, but nothing is ever written (dry runs). */
+export function readOnlyStore(store: GeocodeStore): GeocodeStore {
+  return { get: (key) => store.get(key), put: async () => undefined };
+}
 
 /**
  * Gives stops that the coordinate table does not know a position from OpenStreetMap (cached). Returns copies in the same order;
