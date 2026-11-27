@@ -5,14 +5,19 @@ import { portCoordinate } from './portCoordinates';
 /** Local wall-clock time at the port, `YYYY-MM-DDTHH:mm:ss`, without a zone. */
 const localDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
 
-export const ItineraryStopSchema = z.object({
-  /** UN/LOCODE (e.g. ESLPA). Null when the provider gives none (Mein Schiff). */
-  code: z.string().min(1).nullable(),
-  name: z.string().nullable(),
-  seaDay: z.boolean(),
-  arrival: localDateTime.nullable(),
-  departure: localDateTime.nullable(),
-});
+export const ItineraryStopSchema = z
+  .object({
+    /** UN/LOCODE (e.g. ESLPA). Null when the provider gives none (Mein Schiff). */
+    code: z.string().min(1).nullable(),
+    name: z.string().nullable(),
+    seaDay: z.boolean(),
+    arrival: localDateTime.nullable(),
+    departure: localDateTime.nullable(),
+    /** Position looked up via OpenStreetMap; only set for ports the coordinate table does not know. Both set or both null. */
+    lat: z.number().min(-90).max(90).nullable().default(null),
+    lng: z.number().min(-180).max(180).nullable().default(null),
+  })
+  .refine((s) => (s.lat === null) === (s.lng === null), { message: 'lat and lng must both be set or both be null' });
 export type ItineraryStop = z.infer<typeof ItineraryStopSchema>;
 
 export const ItinerarySchema = z.object({
@@ -30,6 +35,7 @@ export function drawableStops(stops: ItineraryStop[]): { stop: ItineraryStop; la
     if (stop.seaDay) continue;
     const at = portCoordinate(stop);
     if (at) drawable.push({ stop, lat: at.lat, lng: at.lng });
+    else if (typeof stop.lat === 'number' && typeof stop.lng === 'number') drawable.push({ stop, lat: stop.lat, lng: stop.lng });
   }
   return drawable;
 }

@@ -7,7 +7,7 @@ import type { CollectionRun, ItineraryStop, Route } from '@cruise/domain';
 import { CollectorLockedError, createStores, type Stores } from '@cruise/shared/storage';
 import type { BrowserFactory } from './browser/browserFactory';
 import { createPageSession } from './browser/browserFactory';
-import { collectRoutes } from './collection/batch';
+import { collectRoutes, getDefaultGeocoder, resetDefaultGeocoder } from './collection/batch';
 import { buildSnapshotInput } from './collection/snapshotBuilder';
 import type { CollectedCruise, CruiseProviderCollector } from './collection/types';
 import { MockCollector } from './collectors/MockCollector';
@@ -247,7 +247,7 @@ describe('collection runner', () => {
 });
 
 describe('itinerary collection', () => {
-  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: '2027-01-10T18:00:00' });
+  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: '2027-01-10T18:00:00', lat: null, lng: null });
   const withItinerary = (read: NonNullable<CruiseProviderCollector['readItinerary']>): CruiseProviderCollector => {
     const base = mockRegistry.resolve('https://aida.de/finden/CO07270313/CLASSIC');
     return { id: base.id, label: base.label, source: base.source, headless: true, matches: () => true, collect: (ctx) => base.collect(ctx), readItinerary: read };
@@ -321,6 +321,78 @@ describe('itinerary collection', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  describe('port positions from the geocoder', () => {
+    const runWithGeocoder = (route: Route, collector: CruiseProviderCollector, geocoder: { geocode: ReturnType<typeof vi.fn> }, now = new Date('2026-11-17T10:00:00.000Z')) =>
+      runCollection(route, { snapshots: stores.snapshots, itineraries: stores.itineraries, geocodes: stores.geocodes, geocoder: geocoder as never, registry: new ProviderRegistry([collector]), now: () => now });
+
+    it('stores a looked-up position on a port the table does not know, and leaves a table port alone', async () => {
+      const route = await aidaRoute(stores);
+      const geocoder = { geocode: vi.fn(async () => ({ lat: -4.62, lng: 55.45 })) };
+      await runWithGeocoder(route, withItinerary(async () => [stop('ESLPA', 'Las Palmas'), stop('SCXYZ', 'Port Victoria')]), geocoder);
+      const stops = (await stores.itineraries.get(route.id))!.stops;
+      expect(stops[0]).toMatchObject({ code: 'ESLPA', lat: null, lng: null });
+      expect(stops[1]).toMatchObject({ code: 'SCXYZ', lat: -4.62, lng: 55.45 });
+      expect(geocoder.geocode).toHaveBeenCalledTimes(1);
+      expect(geocoder.geocode).toHaveBeenCalledWith({ name: 'Port Victoria', country: 'sc' });
+    });
+
+    it('a failing geocoder never fails the run: the itinerary is stored without positions and one error is logged', async () => {
+      const route = await aidaRoute(stores);
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const geocoder = { geocode: vi.fn(async () => Promise.reject(new Error('HTTP 503'))) };
+        const out = await runWithGeocoder(route, withItinerary(async () => [stop('SCXYZ', 'Port Victoria')]), geocoder);
+        expect(out.diagnostics.status).toBe('success');
+        expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: true });
+        expect((await stores.itineraries.get(route.id))!.stops[0]).toMatchObject({ code: 'SCXYZ', lat: null, lng: null });
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0]![0]).toContain('Port Victoria');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('stores the unresolved stops even when the whole position step breaks', async () => {
+      const route = await aidaRoute(stores);
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const brokenCache = { get: async () => Promise.reject(new Error('disk')), put: async () => undefined } as unknown as Stores['geocodes'];
+        const out = await runCollection(route, {
+          snapshots: stores.snapshots,
+          itineraries: stores.itineraries,
+          geocodes: brokenCache,
+          geocoder: { geocode: vi.fn() },
+          registry: new ProviderRegistry([withItinerary(async () => [stop('SCXYZ', 'Port Victoria')])]),
+          now: () => new Date('2026-11-17T10:00:00.000Z'),
+        });
+        expect(out.diagnostics.status).toBe('success');
+        expect((await stores.itineraries.get(route.id))!.stops).toHaveLength(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('without a geocoder nothing is looked up (existing behaviour)', async () => {
+      const route = await aidaRoute(stores);
+      await run(route, withItinerary(async () => [stop('SCXYZ', 'Port Victoria')]), stores.itineraries);
+      expect((await stores.itineraries.get(route.id))!.stops[0]).toMatchObject({ lat: null, lng: null });
+    });
+
+    it('a second run with the same data is unchanged and asks the geocoder nothing', async () => {
+      const route = await aidaRoute(stores);
+      const geocoder = { geocode: vi.fn(async () => ({ lat: -4.62, lng: 55.45 })) };
+      const collector = withItinerary(async () => [stop('SCXYZ', 'Port Victoria')]);
+      await runWithGeocoder(route, collector, geocoder);
+      const first = await stores.itineraries.get(route.id);
+      const put = vi.spyOn(stores.itineraries, 'put');
+      await runWithGeocoder(route, collector, geocoder, new Date('2026-11-18T10:00:00.000Z'));
+      expect(put).toHaveBeenCalledTimes(1);
+      await expect(put.mock.results[0]!.value).resolves.toBe('unchanged');
+      expect(geocoder.geocode).toHaveBeenCalledTimes(1);
+      expect((await stores.itineraries.get(route.id))!.readAt).toBe(first!.readAt);
+    });
   });
 
   it('does nothing without readItinerary or without an itinerary store', async () => {
@@ -445,6 +517,35 @@ describe('cruises that leave in more than six months: at most once a week', () =
     expect(sameDay.skippedDetail[0]).toMatchObject({ reason: 'daily', nextDay: '2026-11-21' });
     const nextDay = await collectRoutes([route], { stores, registry: liveRegistry }, { trigger: 'manual', now: at('2026-11-21T07:00:00.000Z') });
     expect(nextDay.outcomes).toHaveLength(1);
+  });
+});
+
+describe('collectRoutes geocoder wiring', () => {
+  const lookups = async (env: Record<string, string>) => {
+    resetDefaultGeocoder();
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+    const fetchFn = vi.fn(async () => new Response('[]', { status: 200 }));
+    vi.stubGlobal('fetch', fetchFn);
+    try {
+      const route = await aidaRoute(stores);
+      const base = mockRegistry.resolve(route.url);
+      const collector: CruiseProviderCollector = { ...base, id: base.id, label: base.label, source: base.source, headless: true, matches: () => true, collect: (ctx) => base.collect(ctx), readItinerary: async () => [{ code: 'SCXYZ', name: 'Port Victoria', seaDay: false, arrival: null, departure: null, lat: null, lng: null }] };
+      await collectRoutes([route], { stores, registry: new ProviderRegistry([collector]), afterSnapshot: null }, { trigger: 'manual', now: () => new Date('2026-11-17T10:00:00.000Z') });
+      return fetchFn.mock.calls.length;
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      resetDefaultGeocoder();
+    }
+  };
+
+  it('asks OpenStreetMap in live mode', async () => expect(await lookups({ COLLECTOR_MODE: 'live', GEOCODE: '1' })).toBe(1));
+  it('never with GEOCODE=0', async () => expect(await lookups({ COLLECTOR_MODE: 'live', GEOCODE: '0' })).toBe(0));
+  it('never in mock mode', async () => expect(await lookups({ COLLECTOR_MODE: 'mock', GEOCODE: '1' })).toBe(0));
+  it('shares one geocoder between collections of a process', () => {
+    resetDefaultGeocoder();
+    expect(getDefaultGeocoder()).toBe(getDefaultGeocoder());
+    resetDefaultGeocoder();
   });
 });
 

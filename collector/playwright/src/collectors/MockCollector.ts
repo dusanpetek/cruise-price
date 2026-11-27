@@ -23,9 +23,9 @@ export class MockCollector implements CruiseProviderCollector {
   /** Always the same short trip between two drawable ports, so mock mode and the e2e tests can draw a map. */
   async readItinerary(): Promise<ItineraryStop[]> {
     return [
-      { code: 'ESLPA', name: 'Las Palmas', seaDay: false, arrival: null, departure: '2027-01-10T18:00:00' },
-      { code: 'SEE', name: null, seaDay: true, arrival: null, departure: null },
-      { code: 'ESSPC', name: 'Santa Cruz de La Palma', seaDay: false, arrival: '2027-01-12T08:00:00', departure: '2027-01-12T17:00:00' },
+      { code: 'ESLPA', name: 'Las Palmas', seaDay: false, arrival: null, departure: '2027-01-10T18:00:00', lat: null, lng: null },
+      { code: 'SEE', name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null },
+      { code: 'ESSPC', name: 'Santa Cruz de La Palma', seaDay: false, arrival: '2027-01-12T08:00:00', departure: '2027-01-12T17:00:00', lat: null, lng: null },
     ];
   }
 }

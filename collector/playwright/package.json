@@ -13,7 +13,8 @@
     "try-live": "tsx src/cli/try-live.ts",
     "check-data": "tsx src/cli/check-data.ts",
     "report:weekly": "tsx src/cli/weekly-report.ts",
-    "try-search": "tsx src/cli/try-search.ts"
+    "try-search": "tsx src/cli/try-search.ts",
+    "positions:resolve": "tsx src/cli/resolve-positions.ts"
   },
   "dependencies": {
     "@cruise/analytics": "workspace:^",

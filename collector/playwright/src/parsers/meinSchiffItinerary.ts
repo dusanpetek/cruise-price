@@ -55,7 +55,7 @@ export function parseMeinSchiffItinerary(lines: string[]): ItineraryStop[] {
       continue;
     }
     if (SEA_DAY.test(line)) {
-      stops.push({ code: null, name: null, seaDay: true, arrival: null, departure: null });
+      stops.push({ code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null });
       skipping = true;
       current = null;
       continue;
@@ -71,7 +71,7 @@ export function parseMeinSchiffItinerary(lines: string[]): ItineraryStop[] {
       // a time in another format, or a note while Ankunft/Abfahrt still waits for its time: never a port
       continue;
     } else {
-      current = { code: null, name: line, seaDay: false, arrival: null, departure: null };
+      current = { code: null, name: line, seaDay: false, arrival: null, departure: null, lat: null, lng: null };
       stops.push(current);
       pending = null;
     }

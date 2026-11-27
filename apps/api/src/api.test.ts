@@ -76,7 +76,7 @@ describe('routes', () => {
   });
 
   describe('itinerary', () => {
-    const stops = [{ code: 'ESPMI', name: 'Palma', seaDay: false, arrival: null, departure: '2026-12-01T17:00:00' }];
+    const stops = [{ code: 'ESPMI', name: 'Palma', seaDay: false, arrival: null, departure: '2026-12-01T17:00:00', lat: null, lng: null }];
     const itineraryFile = (id: string) => join(dir, 'itineraries', `${id}.json`);
 
     it('answers 404 for an unknown route', async () => {

@@ -98,8 +98,8 @@ describe('Mein Schiff dialog parsing', () => {
 describe('Mein Schiff itinerary', () => {
   // Captured 2026-11-27 from the "Reiseverlauf" dialog of the 7-night Canary Islands trip (visible text).
   const lines = normalizeText(readFileSync(new URL('./__fixtures__/meinSchiffItinerary.txt', import.meta.url), 'utf8')).split('\n');
-  const port = (name: string, arrival: string | null, departure: string | null) => ({ code: null, name, seaDay: false, arrival, departure });
-  const sea = { code: null, name: null, seaDay: true, arrival: null, departure: null };
+  const port = (name: string, arrival: string | null, departure: string | null) => ({ code: null, name, seaDay: false, arrival, departure, lat: null, lng: null });
+  const sea = { code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null };
 
   it('reads every port and sea day in order with local times', () => {
     expect(parseMeinSchiffItinerary(lines)).toEqual([

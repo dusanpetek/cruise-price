@@ -62,6 +62,8 @@ export function aidaStops(ports: AidaItem['ports'], sailingStart?: string | null
       seaDay,
       arrival: stopTime(p.arrivalDateTime),
       departure: stopTime(p.departureDateTime),
+      lat: null,
+      lng: null,
     };
   });
   if (sailingStart === undefined) return stops;

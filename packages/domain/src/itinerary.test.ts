@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ItineraryStopSchema, drawableStops, formatStopTime, portCoordinate, type ItineraryStop } from './index';
+import { ItinerarySchema, ItineraryStopSchema, drawableStops, formatStopTime, portCoordinate, type ItineraryStop } from './index';
 
 const stop = (over: Partial<ItineraryStop>): ItineraryStop => ({
   code: null,
@@ -7,6 +7,8 @@ const stop = (over: Partial<ItineraryStop>): ItineraryStop => ({
   seaDay: false,
   arrival: null,
   departure: null,
+  lat: null,
+  lng: null,
   ...over,
 });
 
@@ -82,7 +84,7 @@ describe('Mein Schiff names with an island qualifier', () => {
 });
 
 describe('Seychelles (AIDAblu "Mauritius, Seychellen & Madagaskar", route as stored on the server)', () => {
-  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: null });
+  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: null, lat: null, lng: null });
   it('draws every port of the route, the Seychelles included, in order', () => {
     const stops = [stop('MUPLU', 'Port Louis'), stop('RELPT', 'Le Port'), stop('SCLDI', 'La Digue'), stop('SCPOV', 'Mahe'), stop('MGDIE', 'Antsiranana'), stop('MGNOS', 'Nosy Be'), stop('MUPLU', 'Port Louis')];
     expect(drawableStops(stops).map((v) => v.stop.code)).toEqual(['MUPLU', 'RELPT', 'SCLDI', 'SCPOV', 'MGDIE', 'MGNOS', 'MUPLU']);
@@ -95,5 +97,48 @@ describe('Seychelles (AIDAblu "Mauritius, Seychellen & Madagaskar", route as sto
       expect(c.lng).toBeGreaterThan(55);
       expect(c.lng).toBeLessThan(56);
     }
+  });
+});
+
+describe('stored stop position', () => {
+  it('defaults lat/lng to null and still parses an old stored itinerary', () => {
+    const parsed = ItineraryStopSchema.parse({ code: 'SCPOV', name: 'Port Victoria', seaDay: false, arrival: null, departure: null });
+    expect(parsed.lat).toBeNull();
+    expect(parsed.lng).toBeNull();
+    const old = {
+      routeId: 'r1',
+      provider: 'aida',
+      readAt: '2026-11-27T10:00:00.000Z',
+      stops: [{ code: 'ESLPA', name: 'Las Palmas', seaDay: false, arrival: null, departure: null }],
+    };
+    expect(ItinerarySchema.safeParse(old).success).toBe(true);
+  });
+
+  it('rejects a position with only one coordinate', () => {
+    expect(ItineraryStopSchema.safeParse(stop({ lat: 10 })).success).toBe(false);
+    expect(ItineraryStopSchema.safeParse(stop({ lng: 10 })).success).toBe(false);
+    expect(ItineraryStopSchema.safeParse(stop({ lat: 10, lng: 20 })).success).toBe(true);
+  });
+
+  it('draws a stop with an unknown code from its stored position, in order', () => {
+    const stops = [
+      stop({ code: 'ESLPA' }),
+      stop({ code: 'XXXXX', lat: -4.62, lng: 55.45 }),
+      stop({ code: 'YYYYY' }),
+    ];
+    const drawn = drawableStops(stops);
+    expect(drawn.map((d) => d.stop.code)).toEqual(['ESLPA', 'XXXXX']);
+    expect(drawn[1]).toMatchObject({ lat: -4.62, lng: 55.45 });
+  });
+
+  it('does not draw a stop object that lacks the position fields (unparsed API JSON)', () => {
+    const raw = { code: 'XXXXX', name: 'Nowhere', seaDay: false, arrival: null, departure: null } as unknown as ItineraryStop;
+    expect(drawableStops([raw])).toEqual([]);
+  });
+
+  it('lets the table coordinate win over a stored position', () => {
+    const table = portCoordinate({ code: 'ESLPA', name: null })!;
+    const [drawn] = drawableStops([stop({ code: 'ESLPA', lat: 1, lng: 2 })]);
+    expect(drawn).toMatchObject({ lat: table.lat, lng: table.lng });
   });
 });
