@@ -1215,8 +1215,21 @@ test('legal pages are public and linked from the sign-in page', async ({ page })
 });
 
 test('itinerary: cabin groups on the route page and the route popup with a map and a sea day', async ({ page }) => {
-  // The map must not depend on the internet: tiles are answered empty.
-  await page.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ status: 204, body: '' }));
+  // The map must not depend on the internet: tiles are answered empty. The production site sends Referrer-Policy: no-referrer
+  // (Caddyfile) and OpenStreetMap blocks tile requests without a Referer, so the page gets that policy here too.
+  const tileReferers: (string | undefined)[] = [];
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const meta = document.createElement('meta');
+      meta.name = 'referrer';
+      meta.content = 'no-referrer';
+      document.head.appendChild(meta);
+    });
+  });
+  await page.route('https://tile.openstreetmap.org/**', (route) => {
+    tileReferers.push(route.request().headers()['referer']);
+    return route.fulfill({ status: 204, body: '' });
+  });
   await openDemo(page);
   await page.getByRole('button', { name: 'Collect now' }).click();
   await expect(page.getByRole('button', { name: 'Collect now' })).toBeEnabled();
@@ -1229,6 +1242,8 @@ test('itinerary: cabin groups on the route page and the route popup with a map a
   await expect(dialog.getByText('Sea day')).toBeVisible();
   await expect(dialog.locator('.leaflet-container')).toBeVisible();
   await expect(dialog.locator('.leaflet-interactive')).toHaveCount(3); // two markers and the line
+  await expect.poll(() => tileReferers.length).toBeGreaterThan(0);
+  expect(tileReferers.every((r) => r === 'http://localhost:5173/')).toBe(true); // the origin, never empty, no path
   await page.screenshot({ path: '.tmp/route-popup-desktop.png' });
 
   await page.keyboard.press('Escape');

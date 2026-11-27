@@ -25,7 +25,9 @@ function RouteMap({ stops }: { stops: ItineraryStop[] }) {
     if (!el) return;
     const visits = drawableStops(stops);
     const map = L.map(el, { scrollWheelZoom: false });
-    L.tileLayer(TILES, { maxZoom: 18, attribution: `&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> ${t('contributors')}` }).addTo(map);
+    // The site sends Referrer-Policy: no-referrer (Caddyfile); OpenStreetMap's tile servers block requests without a Referer
+    // (https://wiki.openstreetmap.org/wiki/Blocked). Only the tile images get the browser default: the origin, no path.
+    L.tileLayer(TILES, { maxZoom: 18, referrerPolicy: 'strict-origin-when-cross-origin', attribution: `&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> ${t('contributors')}` }).addTo(map);
     const line = L.polyline(visits.map((v) => [v.lat, v.lng] as [number, number]), { color: '#2563eb', weight: 3 }).addTo(map);
     const seen = new Set<string>();
     for (const v of visits) {

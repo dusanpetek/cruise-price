@@ -92,7 +92,7 @@ function Datenschutz() {
       <P>Eine Weitergabe an Dritte erfolgt nicht, außer an den Hosting-Anbieter als Auftragsverarbeiter sowie, nur beim Öffnen der Routenkarte, an die OpenStreetMap Foundation (siehe „Kartenansicht der Route“). Die Preise werden von den öffentlichen Seiten der Anbieter abgerufen; dabei werden keine personenbezogenen Daten der Nutzer übermittelt.</P>
       <H2>Kartenansicht der Route</H2>
       <P>
-        Die Routenkarte lädt Kartenkacheln von OpenStreetMap. Dabei sendet dein Browser seine IP-Adresse und den angefragten Kartenausschnitt an die Tile-Server der OpenStreetMap Foundation. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (anschauliche Darstellung der
+        Die Routenkarte lädt Kartenkacheln von OpenStreetMap. Dabei sendet dein Browser seine IP-Adresse, die Adresse dieser Website (Referer, ohne Pfad) und den angefragten Kartenausschnitt an die Tile-Server der OpenStreetMap Foundation. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (anschauliche Darstellung der
         Reiseroute). Die Kacheln werden erst angefragt, wenn du die Karte öffnest.
       </P>
       <H2>Speicherdauer und Rechte</H2>
