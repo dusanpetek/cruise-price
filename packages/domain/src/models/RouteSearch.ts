@@ -1,3 +1,4 @@
+import type { ItineraryStop } from './Itinerary';
 import type { ProviderId } from './Provider';
 
 export interface RouteSearchCriteria {
@@ -26,6 +27,8 @@ export interface RouteSearchResult {
   pricePerPerson: number | null;
   flightIncluded: boolean;
   ports: string[];
+  /** The stops with their times, when the provider's search gives them (AIDA). */
+  itinerary?: ItineraryStop[];
   imageUrl: string | null;
 }
 

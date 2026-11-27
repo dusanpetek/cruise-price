@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import type { ItineraryStop } from '@cruise/domain';
 import type { RouteSearchResult } from './types';
 
 const BASE = 'https://aida.de';
@@ -13,7 +14,7 @@ export interface AidaItem {
   title?: string;
   routeGroupCode?: string;
   duration?: number;
-  ports?: { name: string | null }[];
+  ports?: { code?: string | null; name: string | null; arrivalDateTime?: string | null; departureDateTime?: string | null }[];
   cruiseItemVariant?: {
     fromCity?: string;
     toCity?: string;
@@ -32,6 +33,24 @@ export interface AidaItem {
 export const aidaJourneyUrl = (journey: string) => `${BASE}/finden/${journey}/CLASSIC?pax[adults]=2&pax[juveniles]=0&pax[children]=0&pax[babies]=0`;
 
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s/(-])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+
+/** Local wall-clock time as AIDA sends it. Anything else (empty, other shape) becomes null rather than failing the search. */
+const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+const stopTime = (t: string | null | undefined) => (t && LOCAL_DATE_TIME.test(t) ? t : null);
+
+/** The itinerary of one AIDA item: its `ports` in order, sea days (code SEE or no name) included. Times are passed through as given. */
+export function aidaStops(ports: AidaItem['ports']): ItineraryStop[] {
+  return (ports ?? []).map((p) => {
+    const seaDay = p.code === 'SEE' || !p.name;
+    return {
+      code: seaDay ? null : p.code || null,
+      name: seaDay ? null : titleCase(p.name as string),
+      seaDay,
+      arrival: stopTime(p.arrivalDateTime),
+      departure: stopTime(p.departureDateTime),
+    };
+  });
+}
 
 /**
  * AIDA groups the sailings of one route into one item: its variants are the same route on other dates and ships. Every variant
@@ -56,6 +75,7 @@ export function aidaResults(items: readonly AidaItem[]): RouteSearchResult[] {
         pricePerPerson: typeof v.amountPerPerson === 'number' ? v.amountPerPerson : null,
         flightIncluded: !!v.flightIncluded,
         ports,
+        itinerary: aidaStops(item.ports),
         imageUrl: v.imageUrl ?? null,
       });
     }

@@ -7,7 +7,7 @@ import { MOCK_CATALOG } from './mock';
 import type { RouteSearchCriteria, RouteSearchOutcome, RouteSearchResult } from './types';
 
 export * from './types';
-export { aidaResults, aidaJourneyUrl, type AidaItem } from './aida';
+export { aidaResults, aidaStops, aidaJourneyUrl, type AidaItem } from './aida';
 export { cleanMeinSchiffUrl, parseMeinSchiffCard } from './meinSchiff';
 export { fold, matchesQuery, inRange, refine } from './filters';
 
