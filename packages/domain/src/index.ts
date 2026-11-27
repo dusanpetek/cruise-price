@@ -7,3 +7,5 @@ export * from './models/Alert';
 export * from './models/Fare';
 export * from './models/Pricing';
 export * from './models/RouteSearch';
+export * from './models/Itinerary';
+export * from './models/portCoordinates';
