@@ -323,6 +323,74 @@ describe('itinerary collection', () => {
     }
   });
 
+  describe('itinerary delivered by collect', () => {
+    const collecting = (itinerary: ItineraryStop[] | undefined, read?: CruiseProviderCollector['readItinerary']): CruiseProviderCollector => {
+      const base = mockRegistry.resolve('https://aida.de/finden/CO07270313/CLASSIC');
+      return {
+        id: base.id,
+        label: base.label,
+        source: base.source,
+        headless: true,
+        matches: () => true,
+        collect: async (ctx) => ({ ...(await base.collect(ctx)), ...(itinerary ? { itinerary } : {}) }),
+        ...(read ? { readItinerary: read } : {}),
+      };
+    };
+
+    it('stores collected.itinerary without calling readItinerary', async () => {
+      const route = await aidaRoute(stores);
+      const read = vi.fn(async () => [stop('XXXXX', 'Other')]);
+      const stops = [stop('ESLPA', 'Las Palmas'), stop('SCPRI', 'Praslin')];
+      const out = await run(route, collecting(stops, read), stores.itineraries);
+      expect(out.diagnostics.status).toBe('success');
+      expect(read).not.toHaveBeenCalled();
+      expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: true });
+      expect(await stores.itineraries.get(route.id)).toEqual({ routeId: route.id, provider: 'aida', readAt: '2026-11-17T10:00:00.000Z', stops });
+    });
+
+    it('works for a collector without readItinerary', async () => {
+      const route = await aidaRoute(stores);
+      const stops = [stop('ESLPA', 'Las Palmas')];
+      await run(route, collecting(stops), stores.itineraries);
+      expect((await stores.itineraries.get(route.id))!.stops).toEqual(stops);
+    });
+
+    it('falls back to readItinerary when collected.itinerary is empty or missing', async () => {
+      const route = await aidaRoute(stores);
+      const read = vi.fn(async () => [stop('ESSPC', 'La Palma')]);
+      await run(route, collecting([], read), stores.itineraries);
+      expect(read).toHaveBeenCalledTimes(1);
+      expect((await stores.itineraries.get(route.id))!.stops).toEqual([stop('ESSPC', 'La Palma')]);
+      const other = await aidaRoute(stores);
+      await run(other, collecting(undefined, read), stores.itineraries, new Date('2026-11-18T10:00:00.000Z'));
+      expect(read).toHaveBeenCalledTimes(2);
+    });
+
+    it('stores nothing without a collected itinerary and without readItinerary (no read-itinerary step)', async () => {
+      const route = await aidaRoute(stores);
+      const out = await run(route, collecting(undefined), stores.itineraries);
+      expect(out.diagnostics.steps.map((s) => s.name)).not.toContain('read-itinerary');
+      expect(await stores.itineraries.get(route.id)).toBeNull();
+    });
+
+    it('resolves positions of collected stops and survives a failing store', async () => {
+      const route = await aidaRoute(stores);
+      const geocoder = { geocode: vi.fn(async () => ({ lat: -4.3, lng: 55.7 })) };
+      await runCollection(route, { snapshots: stores.snapshots, itineraries: stores.itineraries, geocodes: stores.geocodes, geocoder: geocoder as never, registry: new ProviderRegistry([collecting([stop('SCXYZ', 'Port Victoria')])]), now: () => new Date('2026-11-17T10:00:00.000Z') });
+      expect((await stores.itineraries.get(route.id))!.stops[0]).toMatchObject({ lat: -4.3, lng: 55.7 });
+
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const broken = { ...stores.itineraries, put: async () => Promise.reject(new Error('disk full')) } as Stores['itineraries'];
+        const out = await run(route, collecting([stop('ESLPA', 'Las Palmas')]), broken, new Date('2026-11-18T10:00:00.000Z'));
+        expect(out.diagnostics.status).toBe('success');
+        expect(out.diagnostics.steps.at(-1)).toMatchObject({ name: 'read-itinerary', ok: false });
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
+
   describe('port positions from the geocoder', () => {
     const runWithGeocoder = (route: Route, collector: CruiseProviderCollector, geocoder: { geocode: ReturnType<typeof vi.fn> }, now = new Date('2026-11-17T10:00:00.000Z')) =>
       runCollection(route, { snapshots: stores.snapshots, itineraries: stores.itineraries, geocodes: stores.geocodes, geocoder: geocoder as never, registry: new ProviderRegistry([collector]), now: () => now });

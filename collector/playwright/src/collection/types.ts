@@ -44,6 +44,8 @@ export interface CollectedCruise {
   options?: CollectedOption[];
   /** Things that could not be collected; stored on the snapshot so gaps are visible. */
   warnings?: string[];
+  /** The stops of this sailing when the price run already saw them (AIDA's detail response); the runner stores them. */
+  itinerary?: ItineraryStop[];
 }
 
 export interface CruiseProviderCollector {

@@ -5,14 +5,14 @@ import type { BrowserFactory } from './browser/browserFactory';
 import { aidaJourneyUrl, aidaResults, aidaStops, cacheKeyOf, cachedRouteSearch, cleanMeinSchiffUrl, fold, inRange, matchesQuery, parseMeinSchiffCard, refine, searchRoutes, SEARCH_CACHE_TTL_MS, type AidaItem, type SearchCache } from './search/routeSearch';
 import { MOCK_CATALOG } from './search/mock';
 import { MAX_CARDS, MEIN_SCHIFF_TIMEOUTS } from './search/meinSchiff';
-import { AIDA_TIMEOUTS, findAidaItinerary } from './search/aida';
+import { AIDA_TIMEOUTS } from './search/aida';
 
 // ---- fixtures taken from the real sites (shortened) ----
 const AIDA_ITEMS: AidaItem[] = [
   {
     title: 'Kanaren & Madeira ab Gran Canaria',
     duration: 7,
-    ports: [{ name: 'LAS PALMAS/GRAN CANARIA' }, { name: 'PUERTO DEL ROSARIO' }, { name: null }, { name: 'FUNCHAL/MADEIRA' }, { name: 'LAS PALMAS/GRAN CANARIA' }],
+    ports: [{ name: 'LAS PALMAS/GRAN CANARIA', departureDateTime: '2027-03-13T22:00:00' }, { name: 'PUERTO DEL ROSARIO' }, { name: null }, { name: 'FUNCHAL/MADEIRA' }, { name: 'LAS PALMAS/GRAN CANARIA' }],
     cruiseItemVariant: [
       { startDate: '2027-03-13', endDate: '2027-03-20', duration: 7, amountPerPerson: 649, journeyIdentifier: 'CO07270313', flightIncluded: false, ship: { marketingName: 'AIDAcosma' }, imageUrl: 'https://img/1.jpg' },
       { startDate: '2026-12-12', endDate: '2026-12-19', duration: 7, amountPerPerson: 1045, journeyIdentifier: 'CO07261212', flightIncluded: true, ship: { marketingName: 'AIDAcosma' } },
@@ -86,7 +86,7 @@ describe('AIDA results', () => {
       flightIncluded: false,
       ports: ['Las Palmas/Gran Canaria', 'Puerto Del Rosario', 'Funchal/Madeira'],
       itinerary: [
-        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
+        { code: null, name: 'Las Palmas/Gran Canaria', seaDay: false, arrival: null, departure: '2027-03-13T22:00:00', lat: null, lng: null },
         { code: null, name: 'Puerto Del Rosario', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
         { code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null },
         { code: null, name: 'Funchal/Madeira', seaDay: false, arrival: null, departure: null, lat: null, lng: null },
@@ -95,6 +95,7 @@ describe('AIDA results', () => {
       imageUrl: 'https://img/1.jpg',
     });
     expect(results[1]).toMatchObject({ flightIncluded: true, pricePerPerson: 1045, imageUrl: null });
+    expect(results[1]).not.toHaveProperty('itinerary');
     expect(results[2]).toMatchObject({ ship: 'AIDAnova', pricePerPerson: null, nights: 7 });
   });
 
@@ -121,48 +122,39 @@ describe('AIDA results', () => {
     expect(a).toEqual({ code: 'ESLPA', name: null, seaDay: false, arrival: null, departure: null, lat: null, lng: null });
   });
 
-  it('shifts the times to a sailing start by whole days, time of day kept', () => {
-    const times = (start?: string | null) => aidaStops(LIVE_PORTS, start).map((x) => [x.arrival, x.departure]);
-    expect(times('2026-11-28')).toEqual(times());
-    expect(times('2026-12-19')).toEqual([
-      [null, '2026-12-19T22:00:00'],
-      ['2026-12-20T10:00:00', '2026-12-20T20:00:00'],
-      [null, null],
-      ['2026-12-22T08:00:00', '2026-12-22T18:00:00'],
-      [null, null],
-      ['2026-12-24T08:00:00', '2026-12-25T00:00:00'],
-      ['2026-12-25T09:00:00', '2026-12-25T22:00:00'],
-      ['2026-12-26T05:00:00', null],
+  it('merges a stay that AIDA splits in two entries (arrival only, then departure only)', () => {
+    const stops = aidaStops([
+      { code: 'SCPOV', name: 'SEYCHELLEN', arrivalDateTime: '2028-02-08T02:00:00', departureDateTime: '' },
+      { code: 'SCPOV', name: 'SEYCHELLEN', arrivalDateTime: '', departureDateTime: '2028-02-09T19:00:00' },
     ]);
-    const crossing = aidaStops(LIVE_PORTS, '2027-01-24');
-    expect(crossing[0]).toMatchObject({ arrival: null, departure: '2027-01-24T22:00:00' });
-    expect(crossing[3]).toMatchObject({ arrival: '2027-01-27T08:00:00', departure: '2027-01-27T18:00:00' });
-    expect(crossing[7]).toMatchObject({ arrival: '2027-01-31T05:00:00', departure: null });
-    expect(crossing[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null, lat: null, lng: null });
+    expect(stops).toEqual([{ code: 'SCPOV', name: 'Seychellen', seaDay: false, arrival: '2028-02-08T02:00:00', departure: '2028-02-09T19:00:00', lat: null, lng: null }]);
   });
 
-  it('sets all times to null when the shift cannot be worked out', () => {
-    const allNull = (stops: ReturnType<typeof aidaStops>) => stops.every((x) => x.arrival === null && x.departure === null);
-    const noDeparture = LIVE_PORTS.map((p) => ({ ...p, departureDateTime: null }));
-    expect(aidaStops(noDeparture, '2026-12-19')).toHaveLength(8);
-    expect(allNull(aidaStops(noDeparture, '2026-12-19'))).toBe(true);
-    expect(allNull(aidaStops(LIVE_PORTS, '19.12.2026'))).toBe(true);
-    expect(allNull(aidaStops(LIVE_PORTS, null))).toBe(true);
-    expect(allNull(aidaStops(LIVE_PORTS, ''))).toBe(true);
-  });
-
-  it('gives every variant the stops of its own dates', () => {
+  it('gives only the first variant of an item the stops, with the times exactly as given (nothing is shifted)', () => {
     const [a, b, c] = aidaResults([
       { title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2026-11-28' }, { journeyIdentifier: 'J2', startDate: '2027-03-13' }, { journeyIdentifier: 'J3' }] },
     ]);
     expect(a!.itinerary![0]!.departure).toBe('2026-11-28T22:00:00');
-    expect(b!.itinerary![0]!.departure).toBe('2027-03-13T22:00:00');
-    expect(b!.itinerary![7]!.arrival).toBe('2027-03-20T05:00:00');
-    expect(c!.itinerary!.every((x) => x.arrival === null && x.departure === null)).toBe(true);
+    expect(a!.itinerary![7]!.arrival).toBe('2026-12-05T05:00:00');
+    expect(b).not.toHaveProperty('itinerary');
+    expect(c).not.toHaveProperty('itinerary');
   });
 
-  it('attaches the stops to every result and leaves ports unchanged', () => {
-    const r = aidaResults([{ title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J1' }] }])[0]!;
+  it('finds the first variant by the date of the first departure, wherever it is listed', () => {
+    const rs = aidaResults([
+      { title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J2', startDate: '2027-03-13' }, { journeyIdentifier: 'J1', startDate: '2026-11-28' }] },
+    ]);
+    expect(rs.map((r) => r.itinerary !== undefined)).toEqual([false, true]);
+  });
+
+  it('gives no variant a route when the first departure is unknown', () => {
+    const noDeparture = LIVE_PORTS.map((p) => ({ ...p, departureDateTime: null }));
+    const rs = aidaResults([{ title: 'x', ports: noDeparture, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2026-11-28' }] }]);
+    expect(rs[0]).not.toHaveProperty('itinerary');
+  });
+
+  it('leaves ports unchanged', () => {
+    const r = aidaResults([{ title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2026-11-28' }] }])[0]!;
     expect(r.itinerary).toHaveLength(8);
     expect(r.ports).toEqual(['Las Palmas/Gran Canaria', 'Santa Cruz/La Palma', 'Agadir', 'Puerto Del Rosario', 'Arrecife/Lanzarote']);
   });
@@ -436,36 +428,5 @@ describe('search cache', () => {
     await searchRoutes('aida', {}, { mode: 'mock', cache: mock });
     expect(mock.read).not.toHaveBeenCalled();
     expect(mock.write).not.toHaveBeenCalled();
-  });
-});
-
-describe('findAidaItinerary', () => {
-  const ports = [
-    { code: 'ESLPA', name: 'LAS PALMAS', arrivalDateTime: null, departureDateTime: '2027-01-10T18:00:00' },
-    { code: 'SEE', name: null, arrivalDateTime: null, departureDateTime: null },
-    { code: 'ESSPC', name: 'SANTA CRUZ DE LA PALMA', arrivalDateTime: '2027-01-12T08:00:00', departureDateTime: '2027-01-12T17:00:00' },
-  ];
-  const items: AidaItem[] = [
-    { title: 'Other', ports: [], cruiseItemVariant: [{ journeyIdentifier: 'X1', startDate: '2027-02-01' }] },
-    { title: 'Kanaren', ports, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2027-01-10' }, { journeyIdentifier: 'J2', startDate: '2027-01-24' }] },
-  ];
-  const pageWith = (evaluate: () => unknown) =>
-    ({ goto: vi.fn(async () => undefined), waitForLoadState: vi.fn(async () => undefined), evaluate: vi.fn(async () => evaluate()) }) as unknown as Page;
-
-  it('returns the stops of the item that has the journey', async () => {
-    const stops = await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'J1');
-    expect(stops).toHaveLength(3);
-    expect(stops![0]).toMatchObject({ code: 'ESLPA', departure: '2027-01-10T18:00:00' });
-    expect(stops![1]).toMatchObject({ seaDay: true });
-  });
-
-  it('shifts the times of a later sailing to its own start date', async () => {
-    const stops = await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'J2');
-    expect(stops![0]!.departure).toBe('2027-01-24T18:00:00');
-    expect(stops![2]).toMatchObject({ arrival: '2027-01-26T08:00:00', departure: '2027-01-26T17:00:00' });
-  });
-
-  it('returns null for an unknown journey', async () => {
-    expect(await findAidaItinerary(pageWith(() => ({ items, capped: false })), 'NOPE')).toBeNull();
   });
 });

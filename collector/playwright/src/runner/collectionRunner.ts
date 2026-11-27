@@ -87,11 +87,13 @@ export async function runCollection(route: Route, deps: CollectionRunnerDeps): P
         }),
       ),
     );
-    if (collector.readItinerary && itineraries) {
+    if ((collected.itinerary?.length || collector.readItinerary) && itineraries) {
       // Only after the snapshot is stored: whatever happens here (the step stays recorded as failed) must not fail the price run.
       try {
         await diagnostics.step('read-itinerary', async () => {
-          let stops = await collector.readItinerary!({ url: route.url, routeId: route.id, config, diagnostics, getPage: session!.getPage, now: startedAt });
+          let stops = collected.itinerary?.length
+            ? collected.itinerary
+            : await collector.readItinerary!({ url: route.url, routeId: route.id, config, diagnostics, getPage: session!.getPage, now: startedAt });
           if (stops && stops.length > 0 && geocoder && geocodes) {
             try {
               stops = await resolveStopPositions(stops, { geocoder, store: geocodes, now: () => startedAt });

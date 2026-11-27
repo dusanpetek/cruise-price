@@ -1,11 +1,10 @@
 import type { Page } from 'playwright';
-import { detectProviderId, PROVIDER_LABELS, type FareOption, type ItineraryStop } from '@cruise/domain';
+import { detectProviderId, PROVIDER_LABELS, type FareOption } from '@cruise/domain';
 import type { CollectedCabin, CollectedCruise, CollectedOption, CollectionContext, CruiseProviderCollector } from '../collection/types';
 import { aidaJourneyId, fillPattern, fillUrl, parseAidaAllInStep, parseAidaCabinCodes, parseAidaFareStep, toFareOption, type ServiceLine } from '../parsers/fares';
-import { parseAidaCruiseDetail } from '../parsers/aida';
+import { parseAidaCruiseDetail, parseAidaDetailItinerary } from '../parsers/aida';
 import { normalizeText, re } from '../parsers/text';
 import { locate } from '../selectors/locate';
-import { findAidaItinerary } from '../search/aida';
 import { loadAidaSelectors, type AidaSelectors } from '../selectors';
 import { readCabinCards } from './aidaCards';
 import { acceptCookies, waitForText } from './browserSteps';
@@ -63,13 +62,9 @@ export class AidaCollector implements CruiseProviderCollector {
     if (cabins.length === 0) throw new Error(`No cabin has a price. ${warnings.join(' | ')}`);
 
     const fares = await this.collectFares(ctx, page, rawDetail, cabins);
-    return { currency: 'EUR', cruise, party: { adults: config.adults, departureAirport: config.airport }, cabins, ...fares, warnings: [...warnings, ...fares.warnings] };
-  }
-
-  /** AIDA's own search lists the stops of every sailing; the window of the price run is reused for it. */
-  async readItinerary(ctx: CollectionContext): Promise<ItineraryStop[] | null> {
-    const journey = aidaJourneyId(ctx.url, this.selectors.journeyPattern);
-    return journey ? findAidaItinerary(await ctx.getPage(), journey) : null;
+    // The sailing's own stops, exact per sailing. Missing in the response: none (never the search's shifted ones).
+    const itinerary = parseAidaDetailItinerary(rawDetail) ?? undefined;
+    return { currency: 'EUR', cruise, party: { adults: config.adults, departureAirport: config.airport }, cabins, ...fares, warnings: [...warnings, ...fares.warnings], ...(itinerary ? { itinerary } : {}) };
   }
 
   /**
