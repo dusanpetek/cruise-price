@@ -116,6 +116,46 @@ describe('AIDA results', () => {
     expect(b).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
   });
 
+  it('shifts the times to a sailing start by whole days, time of day kept', () => {
+    const times = (start?: string | null) => aidaStops(LIVE_PORTS, start).map((x) => [x.arrival, x.departure]);
+    expect(times('2026-11-28')).toEqual(times());
+    expect(times('2026-12-19')).toEqual([
+      [null, '2026-12-19T22:00:00'],
+      ['2026-12-20T10:00:00', '2026-12-20T20:00:00'],
+      [null, null],
+      ['2026-12-22T08:00:00', '2026-12-22T18:00:00'],
+      [null, null],
+      ['2026-12-24T08:00:00', '2026-12-25T00:00:00'],
+      ['2026-12-25T09:00:00', '2026-12-25T22:00:00'],
+      ['2026-12-26T05:00:00', null],
+    ]);
+    const crossing = aidaStops(LIVE_PORTS, '2027-01-24');
+    expect(crossing[0]).toMatchObject({ arrival: null, departure: '2027-01-24T22:00:00' });
+    expect(crossing[3]).toMatchObject({ arrival: '2027-01-27T08:00:00', departure: '2027-01-27T18:00:00' });
+    expect(crossing[7]).toMatchObject({ arrival: '2027-01-31T05:00:00', departure: null });
+    expect(crossing[2]).toEqual({ code: null, name: null, seaDay: true, arrival: null, departure: null });
+  });
+
+  it('sets all times to null when the shift cannot be worked out', () => {
+    const allNull = (stops: ReturnType<typeof aidaStops>) => stops.every((x) => x.arrival === null && x.departure === null);
+    const noDeparture = LIVE_PORTS.map((p) => ({ ...p, departureDateTime: null }));
+    expect(aidaStops(noDeparture, '2026-12-19')).toHaveLength(8);
+    expect(allNull(aidaStops(noDeparture, '2026-12-19'))).toBe(true);
+    expect(allNull(aidaStops(LIVE_PORTS, '19.12.2026'))).toBe(true);
+    expect(allNull(aidaStops(LIVE_PORTS, null))).toBe(true);
+    expect(allNull(aidaStops(LIVE_PORTS, ''))).toBe(true);
+  });
+
+  it('gives every variant the stops of its own dates', () => {
+    const [a, b, c] = aidaResults([
+      { title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J1', startDate: '2026-11-28' }, { journeyIdentifier: 'J2', startDate: '2027-03-13' }, { journeyIdentifier: 'J3' }] },
+    ]);
+    expect(a!.itinerary![0]!.departure).toBe('2026-11-28T22:00:00');
+    expect(b!.itinerary![0]!.departure).toBe('2027-03-13T22:00:00');
+    expect(b!.itinerary![7]!.arrival).toBe('2027-03-20T05:00:00');
+    expect(c!.itinerary!.every((x) => x.arrival === null && x.departure === null)).toBe(true);
+  });
+
   it('attaches the stops to every result and leaves ports unchanged', () => {
     const r = aidaResults([{ title: 'x', ports: LIVE_PORTS, cruiseItemVariant: [{ journeyIdentifier: 'J1' }] }])[0]!;
     expect(r.itinerary).toHaveLength(8);
