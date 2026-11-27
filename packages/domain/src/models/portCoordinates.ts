@@ -16,7 +16,11 @@ const PORT_COORDINATES: Record<string, Coordinate> = {
   PTFNC: { lat: 32.6333, lng: -16.9 }, // Funchal (Madeira), 32°38'N 16°54'W
 };
 
-/** Normalized port name to UN/LOCODE, for providers that give names only (Mein Schiff). */
+/**
+ * Normalized port name to UN/LOCODE, for providers that give names only (Mein Schiff).
+ * Plain "Santa Cruz" is deliberately not aliased: it is ambiguous (La Palma ESSPC vs Tenerife ESSCT)
+ * and a wrong marker is worse than a missing one.
+ */
 const NAME_ALIASES: Record<string, string> = {
   'las palmas': 'ESLPA',
   'santa cruz de la palma': 'ESSPC',

@@ -22,6 +22,17 @@ describe('portCoordinate', () => {
   });
 });
 
+describe('printed Mein Schiff port names', () => {
+  const printed = ['Las Palmas', 'Funchal', 'Santa Cruz', 'Las Palmas'].map((name) => stop({ name }));
+
+  it('resolves Las Palmas and Funchal, leaves the ambiguous Santa Cruz undrawn', () => {
+    expect(portCoordinate({ code: null, name: 'Las Palmas' })).not.toBeNull();
+    expect(portCoordinate({ code: null, name: 'Funchal' })).not.toBeNull();
+    expect(portCoordinate({ code: null, name: 'Santa Cruz' })).toBeNull();
+    expect(drawableStops(printed).map((d) => d.stop.name)).toEqual(['Las Palmas', 'Funchal', 'Las Palmas']);
+  });
+});
+
 describe('drawableStops', () => {
   it('drops sea days and unknown ports and keeps the order', () => {
     const stops = [
