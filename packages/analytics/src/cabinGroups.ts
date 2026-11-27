@@ -18,16 +18,26 @@ export interface CabinGroupBreakdown {
   spread: number;
 }
 
+type CabinGroupEntryBase = Omit<CabinGroupEntry, 'deltaToCheapest'>;
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Options of one fare reduced to the cheapest (flight variant) per cabin category. */
+function cabinRowsOfFare(snapshot: CruiseSnapshot, fareCode: string) {
+  const cheapest = new Map<string, CabinGroupEntryBase>();
+  for (const o of snapshot.options) {
+    if (o.fareCode !== fareCode) continue;
+    const known = cheapest.get(o.cabinCategory);
+    if (!known || o.totalPrice < known.tripTotal) cheapest.set(o.cabinCategory, { category: o.cabinCategory, subcategory: o.subcategory, tripPerPerson: o.tripPerPerson, tripTotal: o.totalPrice });
+  }
+  return [...cheapest.values()];
+}
 
 /**
  * Cabin categories of a snapshot grouped by cabin group (TRIP totals): at each cabin's cheapest fare, or, with `fareCode`,
  * at that fare's options. Groups follow CABIN_GROUPS order, unrecognised categories come last, empty groups are omitted.
  */
 export function cabinGroupBreakdown(snapshot: CruiseSnapshot, fareCode: string | null = null): CabinGroupBreakdown[] {
-  const rows = fareCode
-    ? snapshot.options.filter((o) => o.fareCode === fareCode).map((o) => ({ category: o.cabinCategory, subcategory: o.subcategory, tripPerPerson: o.tripPerPerson, tripTotal: o.totalPrice }))
-    : snapshot.cabins.map((c) => ({ category: c.category, subcategory: c.subcategory, tripPerPerson: c.tripPerPerson, tripTotal: c.tripTotal }));
+  const rows = fareCode ? cabinRowsOfFare(snapshot, fareCode) : snapshot.cabins.map((c) => ({ category: c.category, subcategory: c.subcategory, tripPerPerson: c.tripPerPerson, tripTotal: c.tripTotal }));
   const order: (CabinGroup | null)[] = [...CABIN_GROUPS, null];
   return order.flatMap((group): CabinGroupBreakdown[] => {
     const members = rows.filter((r) => cabinGroupOf(r.category) === group).sort((a, b) => a.tripTotal - b.tripTotal);

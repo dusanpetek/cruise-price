@@ -49,6 +49,14 @@ describe('cabinGroupBreakdown', () => {
     expect(cabinGroupBreakdown(s, 'NONE')).toEqual([]);
   });
 
+  it('lists a category once in the fare view even when offered with several flights', () => {
+    const s = fareSnapshot(0, [fare('CLASSIC')], [{ ...opt('Balkonkabine', 'CLASSIC', 1300, 1000), flightCode: 'MUC' }, opt('Balkonkabine', 'CLASSIC', 1000, 1000)]);
+    const [balcony] = cabinGroupBreakdown(s, 'CLASSIC');
+    expect(balcony!.entries).toHaveLength(1);
+    expect(balcony!.entries[0]).toMatchObject({ category: 'Balkonkabine', tripTotal: 2000, tripPerPerson: 1000, deltaToCheapest: 0 });
+    expect(balcony!.spread).toBe(0);
+  });
+
   it('returns [] for a snapshot without cabins', () => {
     expect(cabinGroupBreakdown(snapshot(0, []))).toEqual([]);
   });
