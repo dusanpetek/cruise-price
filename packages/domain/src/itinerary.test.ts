@@ -80,3 +80,20 @@ describe('Mein Schiff names with an island qualifier', () => {
     expect(portCoordinate({ code: null, name })).not.toBeNull();
   });
 });
+
+describe('Seychelles (AIDAblu "Mauritius, Seychellen & Madagaskar", route as stored on the server)', () => {
+  const stop = (code: string, name: string): ItineraryStop => ({ code, name, seaDay: false, arrival: null, departure: null });
+  it('draws every port of the route, the Seychelles included, in order', () => {
+    const stops = [stop('MUPLU', 'Port Louis'), stop('RELPT', 'Le Port'), stop('SCLDI', 'La Digue'), stop('SCPOV', 'Mahe'), stop('MGDIE', 'Antsiranana'), stop('MGNOS', 'Nosy Be'), stop('MUPLU', 'Port Louis')];
+    expect(drawableStops(stops).map((v) => v.stop.code)).toEqual(['MUPLU', 'RELPT', 'SCLDI', 'SCPOV', 'MGDIE', 'MGNOS', 'MUPLU']);
+  });
+  it('puts La Digue and Mahé in the Seychelles (south of the equator, about 55.5 degrees east)', () => {
+    for (const code of ['SCLDI', 'SCPOV']) {
+      const c = portCoordinate({ code, name: null })!;
+      expect(c.lat).toBeLessThan(-4);
+      expect(c.lat).toBeGreaterThan(-5);
+      expect(c.lng).toBeGreaterThan(55);
+      expect(c.lng).toBeLessThan(56);
+    }
+  });
+});

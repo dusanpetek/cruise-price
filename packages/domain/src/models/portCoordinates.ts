@@ -321,6 +321,10 @@ const PORT_COORDINATES: Record<string, Coordinate> = {
   VGTOV: { lat: 18.4167, lng: -64.5833 }, // Tortola (Q827604)
   VNPHU: { lat: 10.5833, lng: 107.0333 }, // Phu My (Q111387289)
   ZAELS: { lat: -33.0175, lng: 27.9047 }, // East London (Q209537)
+  // Seychelles (added 2026-11-27: AIDAblu "Mauritius, Seychellen & Madagaskar" showed no Seychelles). Neither code has coordinates in the
+  // UN/LOCODE list and no Wikidata item carries it, so the place AIDA names is taken from Wikidata:
+  SCPOV: { lat: -4.6236, lng: 55.4544 }, // "Mahe" = Port Victoria, i.e. Victoria on Mahé (Q3940; UN/LOCODE SC VIC, 04°37'S 055°27'E, agrees)
+  SCLDI: { lat: -4.3667, lng: 55.8333 }, // La Digue, island centre (Q581154); the berth La Passe is a few km off
 };
 
 /**
